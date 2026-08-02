@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { constructQuery, tradeStatNames, tradeUrl } from './trade';
+import { constructQueries, constructQuery, seedsPerQuery, tradeStatNames, tradeUrl } from './trade';
 
 const seeds = (...n: number[]) => n.map((seed) => ({ seed }));
 const stripPrefix = (id: string) => id.replace('explicit.pseudo_timeless_jewel_', '');
+const seedsUpTo = (count: number) => Array.from({ length: count }, (_, i) => ({ seed: i + 1 }));
 
 describe('constructQuery — multi-seed (≤180 results)', () => {
   // Repros issues #25, #26, #31, #51 (and #15, #33).
@@ -254,5 +255,132 @@ describe('RED — tradeUrl encodes league names safely', () => {
   it('percent-encodes ampersands and slashes in league names', () => {
     const url = tradeUrl('PC', 'A&B/C');
     expect(url).toContain('A%26B%2FC');
+  });
+});
+
+describe('constructQuery — any conqueror (conqueror === null)', () => {
+  // The conqueror only ever affects the keystone (calculator/tree_manager.go
+  // ReplacePassiveSkill -> GetAlternatePassiveSkillKeyStone), so once keystones
+  // are excluded from the search a seed rolls identically on every conqueror.
+  // "Any" therefore means: match this seed on ANY of the conqueror stat IDs.
+
+  it('single seed yields one group with every conqueror enabled', () => {
+    const q = constructQuery(5, null, seeds(12780));
+    expect(q.query.stats).toHaveLength(1);
+    const g = q.query.stats[0];
+    expect(g.disabled).toBe(false);
+    expect(g.filters).toHaveLength(4);
+    expect(new Set(g.filters.map((f: { id: string }) => stripPrefix(f.id)))).toEqual(
+      new Set(['cadiro', 'victario', 'chitus', 'caspiro'])
+    );
+    // No per-filter disabling — that is what makes it "any".
+    expect(g.filters.every((f: { disabled?: boolean }) => !f.disabled)).toBe(true);
+  });
+
+  // The critical correctness property. PoE trade ANDs separate count groups but
+  // ORs the filters *inside* one group. Splitting a seed's four conqueror
+  // filters across two groups would demand a jewel be two conquerors at once.
+  it('keeps all conqueror variants of a seed inside the SAME group', () => {
+    const q = constructQuery(5, null, seedsUpTo(30));
+    for (const g of q.query.stats) {
+      const bySeed = new Map<number, Set<string>>();
+      for (const f of g.filters as { id: string; value: { min: number } }[]) {
+        const set = bySeed.get(f.value.min) ?? new Set<string>();
+        set.add(stripPrefix(f.id));
+        bySeed.set(f.value.min, set);
+      }
+      for (const [seed, conqs] of bySeed) {
+        expect(conqs.size, `seed ${seed} must carry all 4 conquerors in its group`).toBe(4);
+      }
+    }
+  });
+
+  it('first group enabled, remaining groups disabled (parked comparators)', () => {
+    const q = constructQuery(5, null, seedsUpTo(30));
+    expect(q.query.stats.length).toBeGreaterThan(1);
+    expect(q.query.stats[0].disabled).toBe(false);
+    for (const g of q.query.stats.slice(1)) {
+      expect(g.disabled).toBe(true);
+    }
+  });
+
+  it('never exceeds 45 filters per group', () => {
+    for (const jewel of [1, 5, 6]) {
+      const q = constructQuery(jewel, null, seedsUpTo(seedsPerQuery(jewel, null)));
+      for (const g of q.query.stats) {
+        expect(g.filters.length, `jewel ${jewel}`).toBeLessThanOrEqual(45);
+      }
+      expect(q.query.stats.length).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it('works for Heroic Tragedy, which has only three conquerors', () => {
+    const q = constructQuery(6, null, seeds(150));
+    expect(q.query.stats[0].filters).toHaveLength(3);
+    expect(new Set(q.query.stats[0].filters.map((f: { id: string }) => stripPrefix(f.id)))).toEqual(
+      new Set(['vorana', 'uhtred', 'medved'])
+    );
+  });
+
+  it('still throws for degenerate input', () => {
+    expect(() => constructQuery(5, null, [])).toThrow();
+    expect(() => constructQuery(99, null, seeds(1))).toThrow(/jewel/i);
+  });
+});
+
+describe('seedsPerQuery — capacity per trade link', () => {
+  it('is 45 * 4 for a specific conqueror', () => {
+    expect(seedsPerQuery(5, 'Caspiro')).toBe(180);
+    expect(seedsPerQuery(6, 'Vorana')).toBe(180);
+  });
+
+  // Any costs one filter per conqueror per seed, so capacity drops accordingly.
+  it('divides by the conqueror count for Any', () => {
+    expect(seedsPerQuery(5, null)).toBe(44); // floor(45/4) * 4
+    expect(seedsPerQuery(6, null)).toBe(60); // floor(45/3) * 4
+  });
+});
+
+describe('constructQueries — multi-batch links instead of silent truncation', () => {
+  it('returns a single query when everything fits', () => {
+    const qs = constructQueries(5, 'Caspiro', seedsUpTo(180));
+    expect(qs).toHaveLength(1);
+    expect(qs[0]).toEqual(constructQuery(5, 'Caspiro', seedsUpTo(180)));
+  });
+
+  // Issues #7/#14: previously everything past the cap was sliced off and lost.
+  it('spills past the cap into further queries rather than dropping seeds', () => {
+    const all = seedsUpTo(400);
+    const qs = constructQueries(5, 'Caspiro', all);
+    expect(qs).toHaveLength(3); // 180 + 180 + 40
+
+    const seen = qs.flatMap((q) =>
+      q.query.stats.flatMap((g) => g.filters.map((f: { value: { min: number } }) => f.value.min))
+    );
+    expect(new Set(seen)).toEqual(new Set(all.map((s) => s.seed)));
+  });
+
+  it('batches Any at the reduced per-link capacity', () => {
+    const all = seedsUpTo(100);
+    const qs = constructQueries(5, null, all);
+    expect(qs).toHaveLength(3); // 44 + 44 + 12
+
+    const seen = qs.flatMap((q) =>
+      q.query.stats.flatMap((g) => g.filters.map((f: { value: { min: number } }) => f.value.min))
+    );
+    expect(new Set(seen)).toEqual(new Set(all.map((s) => s.seed)));
+  });
+
+  it('assigns every seed to exactly one batch', () => {
+    const all = seedsUpTo(250);
+    const qs = constructQueries(5, 'Chitus', all);
+    const seen = qs.flatMap((q) =>
+      q.query.stats.flatMap((g) => g.filters.map((f: { value: { min: number } }) => f.value.min))
+    );
+    expect(seen).toHaveLength(new Set(seen).size);
+  });
+
+  it('returns no queries for an empty result set', () => {
+    expect(constructQueries(5, 'Caspiro', [])).toEqual([]);
   });
 });

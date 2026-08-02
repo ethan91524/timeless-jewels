@@ -5,7 +5,8 @@
   export let highlight: (newSeed: number, passives: number[]) => void;
   export let set: SearchWithSeed;
   export let jewel: number;
-  export let conqueror: string;
+  // null means "any conqueror" — see constructQuery in trade.ts
+  export let conqueror: string | null;
   export let platform: string;
   export let league: string;
   export let isLegacyTradersMode = false;

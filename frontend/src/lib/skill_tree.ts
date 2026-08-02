@@ -351,4 +351,13 @@ export const translateStat = (id: number, roll?: number | undefined): string => 
   return translationText;
 };
 
-export { constructQuery, openTrade, tradeStatNames, tradeUrl } from './trade';
+export {
+  constructQuery,
+  constructQueries,
+  openQuery,
+  openTrade,
+  seedsPerQuery,
+  tradeStatNames,
+  tradeUrl
+} from './trade';
+export type { TradeQuery } from './trade';

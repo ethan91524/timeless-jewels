@@ -4,10 +4,10 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import type { Node } from '../../lib/skill_tree_types';
-  import { getAffectedNodes, skillTree, translateStat, openTrade } from '../../lib/skill_tree';
+  import { getAffectedNodes, skillTree, translateStat, constructQueries, openQuery, seedsPerQuery } from '../../lib/skill_tree';
   import { syncWrap } from '../../lib/worker';
   import { proxy } from 'comlink';
-  import type { ReverseSearchConfig, StatConfig } from '../../lib/skill_tree';
+  import type { ReverseSearchConfig, StatConfig, TradeQuery } from '../../lib/skill_tree';
   import SearchResults from '../../lib/components/SearchResults.svelte';
   import { statValues } from '../../lib/values';
   import { data, calculator } from '../../lib/types';
@@ -29,12 +29,20 @@
       }))
     : [];
 
+  // The conqueror only ever changes the keystone, so a stat search that skips
+  // keystones gives identical results for all of them. "Any" exploits that to
+  // build trade links matching every conqueror at once.
+  const ANY_CONQUEROR = 'Any';
+  $: conquerorItems = [...conquerors, { value: ANY_CONQUEROR, label: ANY_CONQUEROR }];
+
   let selectedConqueror = searchParams.has('conqueror')
     ? {
         value: searchParams.get('conqueror'),
         label: searchParams.get('conqueror')
       }
     : undefined;
+
+  $: isAnyConqueror = selectedConqueror?.value === ANY_CONQUEROR;
 
   let seed: number = searchParams.has('seed') ? parseInt(searchParams.get('seed')) : 0;
 
@@ -77,6 +85,12 @@
   }
 
   let mode = searchParams.has('mode') ? searchParams.get('mode') : '';
+
+  // "Any" has no meaning for a single-seed preview: that view renders the
+  // keystone, which is exactly the part the conqueror decides.
+  $: if (isAnyConqueror && mode === 'seed') {
+    mode = 'stats';
+  }
 
   let disabled = new Set<number>();
 
@@ -166,22 +180,25 @@
   let currentSeed = 0;
   let searchResults: SearchResults;
   let searchJewel = 1;
-  let searchConqueror = '';
+  let searchConqueror: string | null = null;
   const search = () => {
     if (!circledNode) {
       return;
     }
 
     searchJewel = selectedJewel.value;
-    searchConqueror = selectedConqueror.value;
+    searchConqueror = isAnyConqueror ? null : selectedConqueror.value;
     searching = true;
     searchResults = undefined;
 
     const query: ReverseSearchConfig = {
       jewel: selectedJewel.value,
-      conqueror: selectedConqueror.value,
+      // Keystones are the only conqueror-dependent passives, so under "Any" we
+      // drop them and any conqueror then yields the same rolls.
+      conqueror: isAnyConqueror ? conquerors[0].value : selectedConqueror.value,
       nodes: affectedNodes
         .filter((n) => !disabled.has(n.skill))
+        .filter((n) => !isAnyConqueror || !n.isKeystone)
         .map((n) => data.TreeToPassive[n.skill])
         .filter((n) => !!n)
         .map((n) => n.Index),
@@ -473,6 +490,24 @@
 
   $: league && localStorage.setItem('league', league.value);
 
+  // A trade link holds a limited number of seeds, so a large result set is
+  // spread over several links rather than being truncated.
+  let showTradeLinks = false;
+  let tradeQueries: TradeQuery[] = [];
+  $: tradeQueries =
+    searchResults && searchResults.raw.length
+      ? constructQueries(searchJewel, searchConqueror, searchResults.raw, isLegacyTradersMode)
+      : [];
+
+  $: tradeBatchSize = seedsPerQuery(searchJewel, searchConqueror);
+  $: tradeBatchSizes = tradeQueries.map((_, i) =>
+    Math.min(tradeBatchSize, searchResults.raw.length - i * tradeBatchSize)
+  );
+
+  $: if (tradeQueries.length < 2) {
+    showTradeLinks = false;
+  }
+
   onMount(() => {
     getLeagues();
   });
@@ -484,7 +519,7 @@
   {clickNode}
   {circledNode}
   selectedJewel={selectedJewel?.value}
-  selectedConqueror={selectedConqueror?.value}
+  selectedConqueror={isAnyConqueror ? undefined : selectedConqueror?.value}
   {highlighted}
   {seed}
   highlightJewels={!circledNode}
@@ -515,10 +550,17 @@
                 <Select items={leagues} bind:value={league} on:change={updateUrl} clearable={false} />
                 <Select items={platforms} bind:value={platform} on:change={updateUrl} clearable={false} />
                 <button
-                  class="p-1 px-3 bg-blue-500/40 rounded disabled:bg-blue-900/40"
-                  on:click={() => openTrade(searchJewel, searchConqueror, searchResults.raw, platform.value, league.value)}
-                  disabled={!searchResults}>
-                  Trade
+                  class="p-1 px-3 bg-blue-500/40 rounded disabled:bg-blue-900/40 whitespace-nowrap"
+                  on:click={() =>
+                    tradeQueries.length > 1
+                      ? (showTradeLinks = !showTradeLinks)
+                      : openQuery(tradeQueries[0], platform.value, league.value)}
+                  disabled={tradeQueries.length === 0}>
+                  {#if tradeQueries.length > 1}
+                    Trade ({tradeQueries.length}) {showTradeLinks ? '^' : 'V'}
+                  {:else}
+                    Trade
+                  {/if}
                 </button>
                 <button
                   class="p-1 px-3 bg-blue-500/40 rounded disabled:bg-blue-900/40"
@@ -528,7 +570,7 @@
                   Grouped
                 </button>
                 <button
-                  class="p-1 px-3 bg-blue-500/40 rounded disabled:bg-blue-900/40"
+                  class="p-1 px-3 bg-blue-500/40 rounded disabled:bg-blue-900/40 whitespace-nowrap"
                   on:click={() => (isLegacyTradersMode = !isLegacyTradersMode)}
                   disabled={!searchResults}>
                   {isLegacyTradersMode ? TradersModes.legacy.label : TradersModes.modern.label}
@@ -547,12 +589,22 @@
           {#if selectedJewel}
             <div class="mt-4">
               <h3 class="mb-2">Conqueror</h3>
-              <Select items={conquerors} bind:value={selectedConqueror} on:change={updateUrl} />
+              <Select items={conquerorItems} bind:value={selectedConqueror} on:change={updateUrl} />
+              {#if isAnyConqueror}
+                <div class="mt-2 text-sm text-neutral-400">
+                  Keystones are excluded from the search — they are the only passive the conqueror changes. Trade links
+                  will match every conqueror.
+                </div>
+              {/if}
             </div>
 
-            {#if selectedConqueror && Object.keys(data.TimelessJewelConquerors[selectedJewel.value]).indexOf(selectedConqueror.value) >= 0}
+            {#if selectedConqueror && (isAnyConqueror || Object.keys(data.TimelessJewelConquerors[selectedJewel.value]).indexOf(selectedConqueror.value) >= 0)}
               <div class="mt-4 w-full flex flex-row">
-                <button class="selection-button" class:selected={mode === 'seed'} on:click={() => setMode('seed')}>
+                <button
+                  class="selection-button"
+                  class:selected={mode === 'seed'}
+                  on:click={() => setMode('seed')}
+                  disabled={isAnyConqueror}>
                   Enter Seed
                 </button>
                 <button class="selection-button" class:selected={mode === 'stats'} on:click={() => setMode('stats')}>
@@ -739,6 +791,19 @@
         {/if}
 
         {#if searchResults && results}
+          {#if showTradeLinks}
+            <!-- A loose search can produce hundreds of batches; keep them from
+                 pushing the results list off screen. -->
+            <div class="flex flex-wrap gap-2 my-2 max-h-40 overflow-y-auto shrink-0">
+              {#each tradeQueries as query, i}
+                <button
+                  class="p-1 px-3 bg-blue-500/40 rounded"
+                  on:click={() => openQuery(query, platform.value, league.value)}>
+                  Batch {i + 1} ({tradeBatchSizes[i]} seeds)
+                </button>
+              {/each}
+            </div>
+          {/if}
           <SearchResults {searchResults} {groupResults} {highlight} jewel={searchJewel} conqueror={searchConqueror} platform={platform.value} league={league.value} isLegacyTradersMode={isLegacyTradersMode} />
         {/if}
       </div>

@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PoE 軍團珠寶搜尋器</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:26px 18px 92px; background:#0d0d10; color:#e8e2d4;
+         font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif; line-height:1.6; }
+  .wrap { max-width:1020px; margin:0 auto; }
+  h1 { font-size:1.5rem; margin:0 0 4px; color:#d6c48a; }
+  .sub { color:#8b8578; font-size:.88rem; margin-bottom:22px; }
+  .card { background:#16161b; border:1px solid #2a2a33; border-radius:10px; padding:18px 20px; margin-bottom:16px; }
+  .card.primary { border-color:#6b5a2b; background:#191710; }
+  .card h2 { font-size:1.04rem; margin:0 0 12px; color:#c9b46b; }
+  label { display:block; font-size:.84rem; color:#a99b6d; margin:0 0 4px; }
+  .row { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:14px; }
+  .row > div { flex:1 1 210px; }
+  select, input, textarea { width:100%; background:#101015; border:1px solid #3a3a45; color:#e8e2d4;
+        border-radius:6px; padding:8px 10px; font-size:.92rem; font-family:inherit; }
+  select { cursor:pointer; }
+  textarea { min-height:110px; font-family:Consolas,monospace; resize:vertical; }
+  select:focus, input:focus, textarea:focus { outline:none; border-color:#a08a44; }
+  button.go { background:#3a3320; border:1px solid #a08a44; color:#f4e9c0; font-size:1rem;
+        padding:11px 26px; border-radius:7px; cursor:pointer; font-weight:600; }
+  button.go:hover { background:#4d4229; }
+  .hint { color:#7d7768; font-size:.8rem; margin-top:5px; }
+  .hint a { color:#c9b46b; }
+  .hint code { font-size:.78rem; }
+  .grid { display:flex; flex-wrap:wrap; gap:10px; }
+  a.btn { display:flex; flex-direction:column; align-items:flex-start; background:#2f2a1c;
+          border:1px solid #6b5a2b; color:#f0e4b8; padding:10px 16px; border-radius:6px;
+          text-decoration:none; min-width:156px; transition:.15s; }
+  a.btn b { font-size:.97rem; }
+  a.btn small { color:#a99b6d; font-family:Consolas,monospace; font-size:.75rem; margin-top:2px; }
+  a.btn:hover { background:#453c25; border-color:#a08a44; }
+  a.btn.wide { min-width:100%; align-items:center; padding:13px; background:#3a3320; }
+  a.btn.done { background:#1b2418; border-color:#40663a; color:#a9c39c; }
+  a.btn.done b::after { content:" ✓"; color:#79b366; }
+  a.btn.locked { opacity:.38; pointer-events:none; filter:grayscale(.5); }
+  a.btn.next { box-shadow:0 0 0 2px #a08a44 inset; }
+  .seeds { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+  .seeds span { background:#1e1e25; border:1px solid #33333d; border-radius:4px;
+                padding:2px 7px; font-family:Consolas,monospace; font-size:.8rem; color:#cfc9b8; }
+  .seeds span.bad { border-color:#8a4f2a; color:#e5a06d; }
+  .note { color:#918a7a; font-size:.85rem; margin-top:10px; }
+  .warn { color:#d99b6a; }
+  code { background:#1e1e25; padding:2px 6px; border-radius:4px; font-size:.84rem; color:#b9d0b0; }
+  ol { padding-left:20px; margin:6px 0; } ol li { margin:5px 0; }
+  #drop { border:1px dashed #4a4436; border-radius:8px; padding:14px 16px; text-align:center;
+          background:#101015; cursor:pointer; transition:.15s; display:flex; flex-direction:column; gap:3px; }
+  #drop b { color:#c9b46b; font-size:.95rem; font-weight:600; }
+  #drop span { color:#7d7768; font-size:.8rem; }
+  #drop u { color:#a99b6d; }
+  #drop:hover, #drop:focus, #drop.over { border-color:#a08a44; background:#171712; outline:none; }
+  #ocrbox { margin-top:12px; }
+  .ocrhead { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:10px;
+             font-size:.86rem; color:#a99b6d; }
+  .ocrhead button { background:#3a3320; border:1px solid #a08a44; color:#f4e9c0; border-radius:6px;
+             padding:6px 14px; cursor:pointer; font-size:.85rem; }
+  .ocrhead button:hover { background:#4d4229; }
+  .hits { display:flex; flex-wrap:wrap; gap:8px; }
+  .hit { display:flex; flex-direction:column; gap:4px; background:#13131a; border:1px solid #33333d;
+         border-radius:6px; padding:6px 8px; width:132px; }
+  .hit.low { border-color:#8a4f2a; }
+  .hit canvas { width:116px; height:auto; image-rendering:pixelated; background:#000; border-radius:3px; }
+  .hit input { padding:4px 6px; font-family:Consolas,monospace; font-size:.86rem; text-align:center; }
+  .hit .conf { font-size:.7rem; color:#7d7768; text-align:center; }
+  .hit.low .conf { color:#d99b6a; }
+  #out { display:none; }
+  #bar { position:fixed; left:0; right:0; bottom:0; background:#14140f; border-top:1px solid #4a4126;
+         padding:10px 18px; display:none; gap:15px; align-items:center; justify-content:center;
+         font-size:.89rem; color:#c9b46b; z-index:9; }
+  #bar.on { display:flex; }
+  #bar .big { font-family:Consolas,monospace; font-size:1.12rem; color:#e8d99b; }
+  #bar button { background:#2f2a1c; border:1px solid #6b5a2b; color:#e0d5ab; border-radius:5px;
+                padding:4px 11px; cursor:pointer; font-size:.82rem; }
+  #bar.cooling { background:#2a1a12; border-top-color:#8a4f2a; color:#e5a06d; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>PoE 軍團珠寶搜尋器</h1>
+  <div class="sub">選對象 → 貼種子數字（可留空）→ 產生搜尋連結。5 種軍團珠寶共 20 個人名，資料取自交易站官方 API（快照 2026-08-09）。</div>
+
+  <div class="card primary">
+    <div class="row">
+      <div>
+        <label>查詢對象</label>
+        <select id="name"></select>
+        <div class="hint">每種珠寶第一列是「不限人名」，該珠寶現行 3 個人名一起查；標「舊版」的是遊戲已移除、市場可能還有存貨的變體。</div>
+      </div>
+      <div>
+        <label>聯盟</label>
+        <select id="league"><option value="亡焰咒海" selected>亡焰咒海</option><option value="亡焰咒海（專家）">亡焰咒海（專家）</option><option value="亡焰咒海. 殘暴">亡焰咒海. 殘暴</option><option value="亡焰咒海. 殘暴（專家）">亡焰咒海. 殘暴（專家）</option><option value="標準模式">標準模式</option><option value="專家模式">專家模式</option><option value="殘暴">殘暴</option><option value="殘暴（專家）">殘暴（專家）</option><option value="__other__">其他（手動輸入）</option></select>
+        <input id="leagueOther" style="display:none;margin-top:6px" placeholder="輸入聯盟名稱">
+      </div>
+      <div>
+        <label>交易狀態</label>
+        <select id="status"><option value="available" selected>即刻購買以及面對面交易</option><option value="securable">即刻購買</option><option value="onlineleague">面對面交易（聯盟在線）</option><option value="online">面對面交易（在線）</option><option value="any">任何</option></select>
+      </div>
+    </div>
+    <div class="row">
+      <div style="flex:1 1 100%">
+        <label>從截圖讀號碼</label>
+        <div id="drop" tabindex="0">
+          <b>Ctrl+V 貼上，或點擊新增圖片</b>
+        </div>
+        <div class="hint">號碼要用天賦樹和權重算出來的話，先去
+          <a href="https://vilsol.github.io/timeless-jewels/tree" target="_blank" rel="noopener">軍團珠寶計算器</a>
+          （選珠寶孔、指定/排除節點、詞綴權重，跟 PoB 同一套資料），
+          再把結果截圖貼上來或複製過來——「<code>52140: 12.5</code>」這種格式會自動只取冒號前的號碼。</div>
+        <input type="file" id="file" accept="image/*" style="display:none">
+        <div id="ocrbox"></div>
+      </div>
+    </div>
+    <div class="row">
+      <div style="flex:1 1 100%">
+        <label>種子數字（逗號、空白、換行都可以；「52140:」這種尾巴會自動忽略）</label>
+        <textarea id="seeds" placeholder="52140&#10;4600&#10;52740　　←　留空＝不限種子，直接看該珠寶全部在售"></textarea>
+        <div class="hint">貼上後會自動去重、由小到大排序，並標出不符合該珠寶一般範圍的可疑數字。<b>留空</b>就是只按種類/人名找全部在售。</div>
+      </div>
+    </div>
+    <div class="row" style="align-items:flex-end">
+      <div style="flex:0 0 190px">
+        <label>每批最多幾個條件</label>
+        <input id="per" type="number" min="1" max="200" value="30">
+      </div>
+      <div style="flex:0 0 150px">
+        <label>冷卻秒數</label>
+        <input id="cool" type="number" min="0" max="120" value="15">
+      </div>
+      <div style="flex:0 0 auto"><button class="go" id="go" type="button">產生搜尋連結</button></div>
+      <div style="flex:1 1 200px" class="hint" id="status-line"></div>
+    </div>
+    <div class="hint">「條件數」＝ 種子數 × 人名數。交易站有查詢複雜度上限（未登入實測 37 個條件，登入後更高），
+      超過會回「查詢過於複雜」；預設 30 是保守值，被擋就調小。</div>
+  </div>
+
+  <div id="out"></div>
+
+  <div class="card">
+    <h2>使用說明</h2>
+    <ol>
+      <li>先在瀏覽器<b>登入 pathofexile.tw</b>，沒登入點連結只會看到登入頁。</li>
+      <li>選對象 → 貼數字（或留空）→ 按「產生搜尋連結」。條件已含<b>價格由低到高</b>。</li>
+      <li><b>一次只開一個連結</b>：每點一次會鎖住幾秒（下方有倒數），時間到再開下一批。連續狂開會被交易站限速 60 秒。</li>
+      <li>核對物品欄的種子數字後，點該列<b>密語按鈕</b>，回遊戲 Enter 貼上送出。</li>
+      <li>換聯盟直接在上面的下拉選；新賽季還沒進清單時選「其他（手動輸入）」打名字。</li>
+    </ol>
+  </div>
+</div>
+
+<div id="bar">
+  <span id="barmsg">一次開一個，開完等冷卻</span>
+  <span id="barcnt"></span>
+  <button id="reset" type="button">重設已開啟標記</button>
+</div>
+
+<script>
+var JEWELS = [{"key": "cadiro", "zh": "卡迪羅", "title": "至高‧頹廢", "legacy": false, "jewel": "優雅的高傲", "jewelKey": "elegant_hubris", "statId": "explicit.pseudo_timeless_jewel_cadiro", "text": "授銜 # 個硬幣以紀念卡迪羅", "min": 2000, "max": 160000, "step": 20}, {"key": "caspiro", "zh": "卡斯皮羅", "title": "至高‧炫耀", "legacy": false, "jewel": "優雅的高傲", "jewelKey": "elegant_hubris", "statId": "explicit.pseudo_timeless_jewel_caspiro", "text": "授銜 # 個硬幣以紀念卡斯皮羅", "min": 2000, "max": 160000, "step": 20}, {"key": "chitus", "zh": "切特斯", "title": "", "legacy": true, "jewel": "優雅的高傲", "jewelKey": "elegant_hubris", "statId": "explicit.pseudo_timeless_jewel_chitus", "text": "授銜 # 個硬幣以紀念切特斯", "min": 2000, "max": 160000, "step": 20}, {"key": "victario", "zh": "維多里奧", "title": "至高‧謀眾", "legacy": false, "jewel": "優雅的高傲", "jewelKey": "elegant_hubris", "statId": "explicit.pseudo_timeless_jewel_victario", "text": "授銜 # 個硬幣以紀念維多里奧", "min": 2000, "max": 160000, "step": 20}, {"key": "akoya", "zh": "阿寇亞", "title": "除鏈師", "legacy": false, "jewel": "致命的驕傲", "jewelKey": "lethal_pride", "statId": "explicit.pseudo_timeless_jewel_akoya", "text": "阿寇亞指揮領導超過 # 戰士", "min": 10000, "max": 18000, "step": 1}, {"key": "kaom", "zh": "岡姆", "title": "血之力量", "legacy": false, "jewel": "致命的驕傲", "jewelKey": "lethal_pride", "statId": "explicit.pseudo_timeless_jewel_kaom", "text": "岡姆指揮領導超過 # 戰士", "min": 10000, "max": 18000, "step": 1}, {"key": "kiloava", "zh": "基洛瓦", "title": "", "legacy": true, "jewel": "致命的驕傲", "jewelKey": "lethal_pride", "statId": "explicit.pseudo_timeless_jewel_kiloava", "text": "基洛瓦指揮領導超過 # 戰士", "min": 10000, "max": 18000, "step": 1}, {"key": "rakiata", "zh": "拉基塔", "title": "戰爭淬煉", "legacy": false, "jewel": "致命的驕傲", "jewelKey": "lethal_pride", "statId": "explicit.pseudo_timeless_jewel_rakiata", "text": "萊基亞塔指揮領導超過 # 戰士", "min": 10000, "max": 18000, "step": 1}, {"key": "asenath", "zh": "安賽娜絲", "title": "與死共舞", "legacy": false, "jewel": "殘酷的紀律", "jewelKey": "brutal_restraint", "statId": "explicit.pseudo_timeless_jewel_asenath", "text": "# 位部屬宣誓服從於安賽娜絲的血脈", "min": 500, "max": 8000, "step": 1}, {"key": "balbala", "zh": "貝爾巴拉", "title": "叛徒", "legacy": false, "jewel": "殘酷的紀律", "jewelKey": "brutal_restraint", "statId": "explicit.pseudo_timeless_jewel_balbala", "text": "# 位部屬宣誓服從於巴爾巴拉的血脈", "min": 500, "max": 8000, "step": 1}, {"key": "deshret", "zh": "迪虛瑞特", "title": "", "legacy": true, "jewel": "殘酷的紀律", "jewelKey": "brutal_restraint", "statId": "explicit.pseudo_timeless_jewel_deshret", "text": "# 位部屬宣誓服從於迪虛瑞特的血脈", "min": 500, "max": 8000, "step": 1}, {"key": "nasima", "zh": "納西瑪", "title": "先見之明", "legacy": false, "jewel": "殘酷的紀律", "jewelKey": "brutal_restraint", "statId": "explicit.pseudo_timeless_jewel_nasima", "text": "# 位部屬宣誓服從於納西瑪的血脈", "min": 500, "max": 8000, "step": 1}, {"key": "avarius", "zh": "伊爾莉斯", "title": "力量之意", "legacy": false, "jewel": "激進的信仰", "jewelKey": "militant_faith", "statId": "explicit.pseudo_timeless_jewel_avarius", "text": "為了讚美 # 名受到聖宗伊爾莉斯轉化的人們所雕刻", "min": 2000, "max": 10000, "step": 1}, {"key": "dominus", "zh": "神主", "title": "內觀信念", "legacy": false, "jewel": "激進的信仰", "jewelKey": "militant_faith", "statId": "explicit.pseudo_timeless_jewel_dominus", "text": "為了讚美 # 名受到神主轉化的人們所雕刻", "min": 2000, "max": 10000, "step": 1}, {"key": "maxarius", "zh": "瑪薩里歐斯", "title": "超凡脫俗", "legacy": false, "jewel": "激進的信仰", "jewelKey": "militant_faith", "statId": "explicit.pseudo_timeless_jewel_maxarius", "text": "為了禮讚 # 名受到聖宗瑪薩里歐斯感化的信眾所雕刻", "min": 2000, "max": 10000, "step": 1}, {"key": "venarius", "zh": "維那利斯", "title": "", "legacy": true, "jewel": "激進的信仰", "jewelKey": "militant_faith", "statId": "explicit.pseudo_timeless_jewel_venarius", "text": "為了讚美 # 名受到聖宗維那利斯轉化的人們所雕刻", "min": 2000, "max": 10000, "step": 1}, {"key": "ahuana", "zh": "阿呼阿娜", "title": "不朽野望", "legacy": false, "jewel": "輝煌的虛榮", "jewelKey": "glorious_vanity", "statId": "explicit.pseudo_timeless_jewel_ahuana", "text": "浸泡在以阿呼阿娜之名獻祭的 # 條生命中", "min": 100, "max": 8000, "step": 1}, {"key": "doryani", "zh": "多里亞尼", "title": "腐化之魂", "legacy": false, "jewel": "輝煌的虛榮", "jewelKey": "glorious_vanity", "statId": "explicit.pseudo_timeless_jewel_doryani", "text": "浸泡在以多里亞尼之名獻祭的 # 條生命中", "min": 100, "max": 8000, "step": 1}, {"key": "xibaqua", "zh": "賽巴昆", "title": "神聖血肉", "legacy": false, "jewel": "輝煌的虛榮", "jewelKey": "glorious_vanity", "statId": "explicit.pseudo_timeless_jewel_xibaqua", "text": "浸泡在以賽巴昆之名獻祭的 # 條生命中", "min": 100, "max": 8000, "step": 1}, {"key": "zerphi", "zh": "澤佛伊", "title": "", "legacy": true, "jewel": "輝煌的虛榮", "jewelKey": "glorious_vanity", "statId": "explicit.pseudo_timeless_jewel_zerphi", "text": "浸泡在以澤佛伊之名獻祭的 # 條生命中", "min": 100, "max": 8000, "step": 1}];
+var HOST = "https://pathofexile.tw";
+
+var elName = document.getElementById('name'), elLeague = document.getElementById('league'),
+    elLeagueOther = document.getElementById('leagueOther'),
+    elStatus = document.getElementById('status'), elSeeds = document.getElementById('seeds'),
+    elPer = document.getElementById('per'), elCool = document.getElementById('cool'),
+    elOut = document.getElementById('out'), elLine = document.getElementById('status-line'),
+    bar = document.getElementById('bar'), barmsg = document.getElementById('barmsg'),
+    barcnt = document.getElementById('barcnt');
+
+// ---- 查詢對象下拉：每種珠寶一個 optgroup，第一列＝不限人名
+(function(){
+  var order = [], groups = {};
+  JEWELS.forEach(function(j){
+    if (!groups[j.jewelKey]) { groups[j.jewelKey] = []; order.push(j.jewelKey); }
+    groups[j.jewelKey].push(j);
+  });
+  order.forEach(function(k){
+    var list = groups[k], og = document.createElement('optgroup');
+    var cur = list.filter(function(j){ return !j.legacy; });
+    og.label = list[0].jewel;
+    var all = document.createElement('option');
+    all.value = 'jewel:' + k;
+    all.textContent = '★ 不限人名（' + cur.length + ' 個都查）';
+    og.appendChild(all);
+    cur.concat(list.filter(function(j){ return j.legacy; })).forEach(function(j){
+      var o = document.createElement('option');
+      o.value = 'name:' + j.key;
+      o.textContent = j.legacy ? j.zh + '（舊版）' : j.zh + '　' + j.title;
+      og.appendChild(o);
+    });
+    elName.appendChild(og);
+  });
+})();
+
+elLeague.addEventListener('change', function(){
+  var other = elLeague.value === '__other__';
+  elLeagueOther.style.display = other ? 'block' : 'none';
+  if (other) elLeagueOther.focus();
+});
+function leagueVal(){
+  return elLeague.value === '__other__' ? elLeagueOther.value.trim() : elLeague.value;
+}
+
+// ---- 記住上次設定
+function save(){
+  try { localStorage.setItem('poejewel', JSON.stringify({
+    n: elName.value, l: elLeague.value, lo: elLeagueOther.value,
+    s: elStatus.value, p: elPer.value, c: elCool.value })); } catch(e){}
+}
+(function(){
+  try {
+    var s = JSON.parse(localStorage.getItem('poejewel') || '{}');
+    if (s.n) elName.value = s.n;
+    if (s.l) { elLeague.value = s.l; elLeague.dispatchEvent(new Event('change')); }
+    if (s.lo) elLeagueOther.value = s.lo;
+    if (s.s) elStatus.value = s.s;
+    if (s.p) elPer.value = s.p;
+    if (s.c) elCool.value = s.c;
+  } catch(e){}
+})();
+
+// ---- 目前選的對象
+function target(){
+  var v = elName.value.split(':'), kind = v[0], key = v[1];
+  if (kind === 'jewel'){
+    var list = JEWELS.filter(function(j){ return j.jewelKey === key && !j.legacy; });
+    return { kind:'jewel', title:list[0].jewel, sub:'不限人名（' + list.length + ' 個都查）',
+             statIds:list.map(function(j){ return j.statId; }),
+             who:list.map(function(j){ return j.zh + '（' + j.title + '）'; }).join('、'),
+             jewel:list[0].jewel, min:list[0].min, max:list[0].max, step:list[0].step };
+  }
+  var j = JEWELS.filter(function(x){ return x.key === key; })[0];
+  return { kind:'name', title:j.jewel + ' · ' + j.zh + (j.legacy ? '（舊版）' : '（' + j.title + '）'),
+           sub:j.key, statIds:[j.statId], who:j.text,
+           jewel:j.jewel, min:j.min, max:j.max, step:j.step };
+}
+
+// 逐行解析：整行有冒號時只取冒號前的數字。計算器輸出是「52140: 12.5」（seed: 權重分數），
+// 把分數也吃進來會生出假 seed；沒冒號的行則整行都收，逗號/空白分隔照樣可用。
+function parseSeedText(text){
+  var out = [];
+  (text || '').split(/[\r\n]+/).forEach(function(line){
+    var head = /[:：]/.test(line) ? line.split(/[:：]/)[0] : line;
+    (head.match(/\d+/g) || []).forEach(function(v){ out.push(Number(v)); });
+  });
+  return out;
+}
+
+function tradeUrl(league, statIds, values, status){
+  var filters = [];
+  if (values.length) {
+    values.forEach(function(v){ statIds.forEach(function(id){
+      filters.push({id:id, value:{min:v, max:v}, disabled:false}); }); });
+  } else {
+    statIds.forEach(function(id){ filters.push({id:id, disabled:false}); });
+  }
+  var q = { sort:{price:"asc"}, query:{ status:{option:status},
+      stats:[{ type:"count", value:{min:1}, filters:filters }]}};
+  return HOST + "/trade/search/" + encodeURIComponent(league) + "?q=" + encodeURIComponent(JSON.stringify(q));
+}
+
+function build(){
+  var t = target();
+  var league = leagueVal();
+  if (!league){ elLine.innerHTML = '<span class="warn">請先填聯盟名稱</span>'; return; }
+  var status = elStatus.value,
+      per = Math.max(1, parseInt(elPer.value) || 30),
+      cool = Math.max(0, parseInt(elCool.value) || 0);
+
+  var nums = parseSeedText(elSeeds.value);
+  var seen = {}, seeds = [], dup = 0;
+  nums.forEach(function(v){ if (seen[v]) { dup++; } else { seen[v] = 1; seeds.push(v); } });
+  seeds.sort(function(a,b){ return a-b; });
+
+  var ns = t.statIds.length, h = '';
+
+  if (!seeds.length){
+    h += '<div class="card primary"><h2>① 全部在售（不限種子）</h2><div class="grid">'
+      + '<a class="btn wide gated" data-k="all" target="_blank" rel="noopener" href="'
+      + tradeUrl(league, t.statIds, [], status) + '"><b>開啟搜尋 · ' + t.title + ' 全部在售</b></a></div>'
+      + '<div class="note">只篩「有這個詞條」，不限定種子數字，價格由低到高。查詢對象：' + t.who + '</div></div>';
+    elLine.innerHTML = '已產生（不限種子）';
+  } else {
+    var perSeed = Math.max(1, Math.floor(per / ns));
+    var batches = [];
+    if (seeds.length > perSeed) for (var i=0;i<seeds.length;i+=perSeed) batches.push(seeds.slice(i, i+perSeed));
+    var bad = seeds.filter(function(v){ return v < t.min || v > t.max || (t.step > 1 && v % t.step); });
+
+    if (batches.length){
+      h += '<div class="card primary"><h2>① 分批搜尋（每批最多 ' + per + ' 個條件，共 ' + batches.length + ' 批）</h2><div class="grid">';
+      batches.forEach(function(b, i){
+        h += '<a class="btn gated" data-k="b'+i+'" target="_blank" rel="noopener" href="'+tradeUrl(league, t.statIds, b, status)+'">'
+          + '<b>第 '+(i+1)+' 批</b><small>'+b[0]+' – '+b[b.length-1]+'　·　'+b.length+' 組（'+(b.length*ns)+' 條件）</small></a>';
+      });
+      h += '</div><div class="note">照順序一批一批開，金框那顆就是下一個。每點一次鎖 '+cool+' 秒，避開交易站限速。'
+        + (ns > 1 ? '不限人名時一顆種子＝'+ns+' 個條件，所以每批只放 '+perSeed+' 組。' : '') + '</div></div>';
+    }
+    var au = tradeUrl(league, t.statIds, seeds, status), total = seeds.length * ns;
+    h += '<div class="card'+(batches.length?'':' primary')+'"><h2>'+(batches.length?'②':'①')+' 全部 '+seeds.length+' 組一次搜尋'+(batches.length?'（備用）':'')+'</h2>'
+      + '<div class="grid"><a class="btn wide gated" data-k="all" target="_blank" rel="noopener" href="'+au+'"><b>開啟搜尋 · 全部 '+seeds.length+' 組</b></a></div>'
+      + '<div class="note'+(total>37?' warn':'')+'">共 '+total+' 個條件'
+      + (total > 37 ? '，<b>很可能被交易站擋下（查詢過於複雜）</b>，未登入實測上限約 37。請用上面的分批。' : '，在複雜度上限內。')
+      + '</div></div>';
+
+    if (seeds.length <= 40){
+      h += '<div class="card"><h2>逐顆單獨搜尋</h2><div class="grid">';
+      seeds.forEach(function(v){
+        h += '<a class="btn gated" data-k="s'+v+'" target="_blank" rel="noopener" href="'+tradeUrl(league, t.statIds, [v], status)+'">'
+          + '<b>'+v+'</b><small>單獨查這一顆</small></a>';
+      });
+      h += '</div></div>';
+    }
+
+    h += '<div class="card"><h2>種子清單（'+seeds.length+' 組）</h2><div class="seeds">'
+      + seeds.map(function(v){ return '<span'+(bad.indexOf(v)>=0?' class="bad"':'')+'>'+v+'</span>'; }).join('')
+      + '</div><div class="note">' + (bad.length
+          ? '<span class="warn">橘色那 '+bad.length+' 組不符合'+t.jewel+'的一般範圍（'+(t.step>1?t.step+' 的倍數、':'')+t.min+'–'+t.max+'），仍已加入搜尋，請確認沒看錯數字。</span> '
+          : '全部落在'+t.jewel+'的一般範圍內（'+(t.step>1?t.step+' 的倍數、':'')+t.min+'–'+t.max+'）。')
+      + '　查詢對象：'+t.who+'　stat id：<code>'+t.statIds.join('、')+'</code></div></div>';
+
+    elLine.innerHTML = seeds.length + ' 組已產生' + (dup ? '（去重 '+dup+' 個）' : '') + (bad.length ? '，<span class="warn">'+bad.length+' 組可疑</span>' : '');
+  }
+
+  elOut.innerHTML = h; elOut.style.display = 'block';
+  bar.classList.add('on');
+  wire(cool); save();
+  elOut.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// ---- 冷卻鎖
+var timer = null, left = 0;
+function wire(cool){
+  var links = Array.prototype.slice.call(elOut.querySelectorAll('a.gated'));
+  if (timer) { clearInterval(timer); timer = null; left = 0; bar.classList.remove('cooling'); }
+  function opened(){ return links.filter(function(a){ return a.classList.contains('done'); }).length; }
+  function refresh(){
+    barcnt.textContent = opened() + ' / ' + links.length + ' 已開啟';
+    links.forEach(function(a){ a.classList.remove('next'); });
+    if (left === 0) for (var i=0;i<links.length;i++) if (!links[i].classList.contains('done')) { links[i].classList.add('next'); break; }
+  }
+  function lock(on){ links.forEach(function(a){ a.classList.toggle('locked', on); }); }
+  function tick(){
+    left--;
+    if (left <= 0){ clearInterval(timer); timer=null; left=0; bar.classList.remove('cooling'); lock(false);
+      barmsg.innerHTML = '可以開下一個了'; refresh(); }
+    else barmsg.innerHTML = '冷卻中，<span class="big">'+left+'</span> 秒後再開下一個';
+  }
+  links.forEach(function(a){
+    a.addEventListener('click', function(){
+      a.classList.add('done');
+      if (cool > 0){
+        lock(true); bar.classList.add('cooling'); left = cool + 1; tick();
+        if (timer) clearInterval(timer);
+        timer = setInterval(tick, 1000);
+      }
+      refresh();
+    });
+  });
+  document.getElementById('reset').onclick = function(){
+    links.forEach(function(a){ a.classList.remove('done'); }); refresh();
+  };
+  barmsg.innerHTML = '一次開一個，開完等冷卻';
+  refresh();
+}
+
+// ================= 截圖數字辨識（純 canvas，不載任何外部函式庫） =================
+var TW = 16, TH = 24, TPL = null;
+var TPL_FONTS = ['Arial','Segoe UI','Tahoma','Verdana','Trebuchet MS','Consolas','Courier New',
+                 'Georgia','Times New Roman','Impact','sans-serif','serif'];
+
+function bboxOf(mask, w, h){
+  var x0=1e9, y0=1e9, x1=-1, y1=-1;
+  for (var y=0;y<h;y++) for (var x=0;x<w;x++) if (mask[y*w+x]){
+    if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
+  }
+  return x1 < 0 ? null : {x0:x0, y0:y0, x1:x1, y1:y1};
+}
+
+// 取 mask 的 bbox，等比放進 TW×TH（保留長寬比、置中），回傳灰階特徵
+function normMask(mask, w, h, box){
+  var b = box || bboxOf(mask, w, h);
+  if (!b) return null;
+  var bw = b.x1-b.x0+1, bh = b.y1-b.y0+1;
+  var sc = Math.min(TW/bw, TH/bh), dw = Math.max(1, Math.round(bw*sc)), dh = Math.max(1, Math.round(bh*sc));
+  var ox = Math.floor((TW-dw)/2), oy = Math.floor((TH-dh)/2);
+  var out = new Float32Array(TW*TH);
+  for (var y=0;y<dh;y++){
+    var sy0 = b.y0 + Math.floor(y*bh/dh), sy1 = Math.max(sy0+1, b.y0 + Math.floor((y+1)*bh/dh));
+    for (var x=0;x<dw;x++){
+      var sx0 = b.x0 + Math.floor(x*bw/dw), sx1 = Math.max(sx0+1, b.x0 + Math.floor((x+1)*bw/dw));
+      var s=0, n=0;
+      for (var yy=sy0; yy<sy1 && yy<=b.y1; yy++) for (var xx=sx0; xx<sx1 && xx<=b.x1; xx++){ s+=mask[yy*w+xx]; n++; }
+      out[(y+oy)*TW + (x+ox)] = n ? s/n : 0;
+    }
+  }
+  return out;
+}
+
+function buildTemplates(){
+  var W=90, H=120, c=document.createElement('canvas'); c.width=W; c.height=H;
+  var g=c.getContext('2d', {willReadFrequently:true}), list=[];
+  TPL_FONTS.forEach(function(f){
+    ['400','700'].forEach(function(wt){
+      for (var d=0; d<=9; d++){
+        g.fillStyle='#000'; g.fillRect(0,0,W,H);
+        g.fillStyle='#fff'; g.font = wt + ' 92px "' + f + '"';
+        g.textBaseline='middle'; g.textAlign='center';
+        g.fillText(String(d), W/2, H/2);
+        var im = g.getImageData(0,0,W,H).data, m = new Float32Array(W*H);
+        for (var i=0;i<W*H;i++) m[i] = im[i*4]/255;
+        var nm = normMask(m, W, H);
+        if (nm) list.push({d:d, m:nm});
+      }
+    });
+  });
+  return list;
+}
+
+// soft-IoU：對灰階邊緣友善，比單純像素差穩
+function matchScore(a, b){
+  var inter=0, uni=0;
+  for (var i=0;i<a.length;i++){ var x=a[i], y=b[i]; inter += x<y?x:y; uni += x>y?x:y; }
+  return uni ? inter/uni : 0;
+}
+
+function classify(nm){
+  if (!TPL) TPL = buildTemplates();
+  var best=-1, bd='?', second=-1;
+  for (var i=0;i<TPL.length;i++){
+    var s = matchScore(nm, TPL[i].m);
+    if (s > best){ if (TPL[i].d !== bd) second = best; best = s; bd = TPL[i].d; }
+    else if (s > second && TPL[i].d !== bd) second = s;
+  }
+  return {d:bd, score:best, margin:best-second};
+}
+
+function otsu(gray){
+  var hist = new Array(256).fill(0), i;
+  for (i=0;i<gray.length;i++) hist[gray[i]]++;
+  var total=gray.length, sum=0;
+  for (i=0;i<256;i++) sum += i*hist[i];
+  var sumB=0, wB=0, best=0, thr=128;
+  for (i=0;i<256;i++){
+    wB += hist[i]; if (!wB) continue;
+    var wF = total-wB; if (!wF) break;
+    sumB += i*hist[i];
+    var mB = sumB/wB, mF = (sum-sumB)/wF, between = wB*wF*(mB-mF)*(mB-mF);
+    if (between > best){ best = between; thr = i; }
+  }
+  return thr;
+}
+
+function med(arr){ var a=arr.slice().sort(function(p,q){return p-q;}); return a[(a.length/2)|0]; }
+
+// 畫到 canvas 並二值化，回傳前景遮罩（1＝字）
+function binarize(img, w, h){
+  var c = document.createElement('canvas'); c.width=w; c.height=h;
+  var g = c.getContext('2d', {willReadFrequently:true});
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+  g.drawImage(img, 0, 0, w, h);
+  var im = g.getImageData(0,0,w,h).data, gray = new Uint8Array(w*h), i;
+  for (i=0;i<w*h;i++) gray[i] = (im[i*4]*0.299 + im[i*4+1]*0.587 + im[i*4+2]*0.114) | 0;
+  var thr = otsu(gray), fg = new Float32Array(w*h), cnt = 0;
+  for (i=0;i<w*h;i++){ var v = gray[i] > thr ? 1 : 0; fg[i]=v; cnt+=v; }
+  if (cnt > w*h*0.5) for (i=0;i<w*h;i++) fg[i] = 1-fg[i];   // 白底黑字 → 反相
+  return {fg:fg, w:w, h:h, canvas:c};
+}
+
+// 連通元件（8 鄰接）+ 濾掉框線與雜點
+function scanBoxes(A){
+  var w=A.w, h=A.h, fg=A.fg, seen = new Uint8Array(w*h), boxes = [], stack = [];
+  for (var y0=0;y0<h;y0++) for (var x0=0;x0<w;x0++){
+    var p = y0*w+x0;
+    if (!fg[p] || seen[p]) continue;
+    stack.length=0; stack.push(p); seen[p]=1;
+    var mnx=x0, mxx=x0, mny=y0, mxy=y0, area=0;
+    while (stack.length){
+      var q = stack.pop(), qx = q%w, qy = (q/w)|0; area++;
+      if (qx<mnx)mnx=qx; if (qx>mxx)mxx=qx; if (qy<mny)mny=qy; if (qy>mxy)mxy=qy;
+      for (var dy=-1;dy<=1;dy++) for (var dx=-1;dx<=1;dx++){
+        var nx=qx+dx, ny=qy+dy;
+        if (nx<0||ny<0||nx>=w||ny>=h) continue;
+        var np=ny*w+nx;
+        if (fg[np] && !seen[np]){ seen[np]=1; stack.push(np); }
+      }
+    }
+    var bw = mxx-mnx+1, bh = mxy-mny+1;
+    if (bh < 6 || bh > h*0.6 || bw > w*0.6) continue;           // 太小 / 框線
+    if (area/(bw*bh) < 0.10) continue;                          // 空心框
+    if (bw/bh > 6) continue;                                    // 橫線
+    boxes.push({x0:mnx, y0:mny, x1:mxx, y1:mxy, w:bw, h:bh, cy:(mny+mxy)/2, area:area});
+  }
+  return boxes;
+}
+
+// 小字容易整串黏在一起。先照「真正的空隙」（垂直投影趨近 0）切，
+// 只有完全黏死、寬到不合理的段落才退回等分——這樣才不會把 0 中間的空洞誤當切點。
+function splitWide(b, A, uw, gapFrac){
+  if (b.w < uw*1.55) return [b];
+  var w=A.w, fg=A.fg, proj=new Array(b.w).fill(0), x, y;
+  for (x=0;x<b.w;x++) for (y=b.y0;y<=b.y1;y++) proj[x] += fg[y*w + b.x0 + x];
+
+  var gapThr = Math.max(1, Math.round(b.h*(gapFrac||0.10)));   // 字間空隙 ≈ 0；0 的中央 ≈ 2 個筆畫寬
+  var segs = [], start = 0, inGap = false;
+  for (x=0;x<b.w;x++){
+    if (proj[x] <= gapThr){
+      if (!inGap){ inGap = true; if (x > start) segs.push([start, x-1]); }
+    } else {
+      if (inGap){ inGap = false; start = x; }
+    }
+  }
+  if (!inGap && start <= b.w-1) segs.push([start, b.w-1]);
+  if (!segs.length) segs = [[0, b.w-1]];
+
+  var parts = [];
+  segs.forEach(function(s){
+    var sw = s[1]-s[0]+1;
+    if (sw < uw*0.25) return;                        // 碎屑
+    if (sw < uw*1.55){ parts.push(s); return; }
+    var n = Math.min(8, Math.max(2, Math.round(sw/uw)));    // 黏死了，只能等分
+    for (var k=0;k<n;k++)
+      parts.push([s[0] + Math.round(k*sw/n), s[0] + Math.round((k+1)*sw/n) - 1]);
+  });
+
+  var out = [];
+  parts.forEach(function(p){
+    var sx0 = b.x0+p[0], sx1 = b.x0+p[1], mny=1e9, mxy=-1, area=0;
+    for (y=b.y0;y<=b.y1;y++) for (x=sx0;x<=sx1;x++) if (fg[y*w+x]){
+      area++; if (y<mny)mny=y; if (y>mxy)mxy=y;
+    }
+    if (mxy < 0) return;
+    out.push({x0:sx0, y0:mny, x1:sx1, y1:mxy, w:sx1-sx0+1, h:mxy-mny+1, cy:(mny+mxy)/2, area:area});
+  });
+  return out.length ? out : [b];
+}
+
+// 回傳 [{text, conf, box}]，box 座標對應回傳的 canvas
+function readDigits(img){
+  var scale = Math.min(1, 1600/img.width);
+  var A = binarize(img, Math.round(img.width*scale), Math.round(img.height*scale));
+  var boxes = scanBoxes(A);
+  if (!boxes.length) return {items:[], canvas:A.canvas};
+
+  // 字太小就整張放大重跑一次：正規化與投影切字都需要足夠解析度
+  var mh = med(boxes.map(function(b){ return b.h; }));
+  if (mh < 34){
+    var k = Math.min(5, 40/mh);
+    A = binarize(img, Math.round(img.width*scale*k), Math.round(img.height*scale*k));
+    boxes = scanBoxes(A);
+    if (!boxes.length) return {items:[], canvas:A.canvas};
+    mh = med(boxes.map(function(b){ return b.h; }));
+  }
+  var w = A.w, fg = A.fg, c = A.canvas;
+
+  // 依 y 分行
+  boxes.sort(function(a,b){ return a.cy-b.cy || a.x0-b.x0; });
+  var lines = [], cur = [];
+  boxes.forEach(function(b){
+    if (!cur.length || Math.abs(b.cy - cur[cur.length-1].cy) < mh*0.6) cur.push(b);
+    else { lines.push(cur); cur=[b]; }
+  });
+  if (cur.length) lines.push(cur);
+
+  // 用一組切字參數解析一行，回傳結果與平均信心；信心就是這組參數切得對不對的評分
+  function parseLine(digits, lh, uwFactor, gapFrac){
+    var narrow = digits.filter(function(b){ return b.w <= lh*0.95; });
+    var uw = Math.max(narrow.length ? med(narrow.map(function(b){ return b.w; })) : 0, lh*uwFactor);
+    var chars = [];
+    digits.forEach(function(b){
+      splitWide(b, A, uw, gapFrac).forEach(function(s){ chars.push(s); });
+    });
+    if (!chars.length) return null;
+
+    var mw = med(chars.map(function(b){ return b.w; }));
+    var groups = [], gcur = [];
+    chars.forEach(function(b){
+      if (!gcur.length || b.x0 - gcur[gcur.length-1].x1 < mw*1.2) gcur.push(b);
+      else { groups.push(gcur); gcur=[b]; }
+    });
+    if (gcur.length) groups.push(gcur);
+
+    var out = [], total = 0, nchar = 0;
+    groups.forEach(function(gp){
+      var text='', minc=1, sum=0;
+      gp.forEach(function(b){
+        var m = new Float32Array(b.w*b.h);
+        for (var yy=0;yy<b.h;yy++) for (var xx=0;xx<b.w;xx++) m[yy*b.w+xx] = fg[(b.y0+yy)*w + (b.x0+xx)];
+        var r = classify(normMask(m, b.w, b.h, {x0:0,y0:0,x1:b.w-1,y1:b.h-1}));
+        text += r.d; sum += r.score; if (r.score < minc) minc = r.score;
+      });
+      total += sum; nchar += gp.length;
+      var ys = gp.map(function(b){ return b.y0; }), ye = gp.map(function(b){ return b.y1; });
+      out.push({ text:text, conf:minc, avg:sum/gp.length,
+                 box:{x0:gp[0].x0-3, y0:Math.min.apply(null,ys)-3,
+                      x1:gp[gp.length-1].x1+3, y1:Math.max.apply(null,ye)+3} });
+    });
+    return nchar ? {items:out, score:total/nchar} : null;
+  }
+
+  var UW_FACTORS = [0.42, 0.52, 0.62], GAP_FRACS = [0.05, 0.10, 0.17, 0.26];
+  var items = [];
+  lines.forEach(function(line){
+    line.sort(function(a,b){ return a.x0-b.x0; });
+    var lh = med(line.map(function(b){ return b.h; }));
+    // 濾掉冒號、逗號、點：數字都是滿高的，標點矮又窄（冒號放大後兩點會連成一塊，光看高度擋不住）
+    var digits = line.filter(function(b){ return b.h > lh*0.78 || (b.h > lh*0.62 && b.w > lh*0.30); });
+    if (!digits.length) return;
+
+    var best = null;
+    UW_FACTORS.forEach(function(uf){ GAP_FRACS.forEach(function(gf){
+      var r = parseLine(digits, lh, uf, gf);
+      if (r && (!best || r.score > best.score)) best = r;
+    }); });
+    if (best) best.items.forEach(function(it){ items.push(it); });
+  });
+  return {items:items, canvas:c};
+}
+
+// ---- 辨識 UI
+var elDrop = document.getElementById('drop'), elFile = document.getElementById('file'),
+    elOcr = document.getElementById('ocrbox');
+
+function showOcr(res){
+  if (!res.items.length){
+    elOcr.innerHTML = '<div class="note warn">這張圖沒讀到數字。可以試著把截圖裁小一點只留號碼，或直接手動打字。</div>';
+    return;
+  }
+  // 用目前選的珠寶規則反查：辨識錯一位數，幾乎一定會違反「倍數」或「範圍」
+  var t = target();
+  function flag(v){
+    var n = parseInt(v, 10);
+    if (isNaN(n)) return '不是數字';
+    if (t.step > 1 && n % t.step) return '不是 ' + t.step + ' 的倍數';
+    if (n < t.min || n > t.max) return '超出 ' + t.min + '–' + t.max;
+    return '';
+  }
+  var badCount = res.items.filter(function(it){ return flag(it.text); }).length;
+  var h = '<div class="ocrhead"><b>讀到 ' + res.items.length + ' 個號碼</b>'
+        + '<span>' + (badCount
+            ? '<span class="warn">有 ' + badCount + ' 個不符合' + t.jewel + '的規則，八成是看錯了 —— 對著圖改掉。</span>'
+            : '全部符合' + t.jewel + '的規則（' + (t.step>1 ? t.step+' 的倍數、' : '') + t.min + '–' + t.max + '）；仍請掃一眼再用。')
+        + '</span>'
+        + '<button id="ocr-replace" type="button">填入種子欄位（取代）</button>'
+        + '<button id="ocr-append" type="button">附加到現有</button></div><div class="hits">';
+  res.items.forEach(function(it, i){
+    var bad = flag(it.text);
+    h += '<div class="hit' + (bad || it.conf < 0.62 ? ' low' : '') + '" id="hitw'+i+'">'
+       + '<canvas id="hitc'+i+'"></canvas>'
+       + '<input id="hiti'+i+'" value="'+it.text+'">'
+       + '<div class="conf">' + (bad ? bad : '信心 ' + Math.round(it.conf*100) + '%') + '</div></div>';
+  });
+  elOcr.innerHTML = h + '</div>';
+
+  // 手動改完即時重新檢查
+  res.items.forEach(function(it, i){
+    var inp = document.getElementById('hiti'+i);
+    inp.addEventListener('input', function(){
+      var bad = flag(inp.value.trim());
+      document.getElementById('hitw'+i).classList.toggle('low', !!bad);
+      document.getElementById('hitw'+i).querySelector('.conf').textContent = bad || '已修改';
+    });
+  });
+
+  res.items.forEach(function(it, i){
+    var b = it.box, cw = b.x1-b.x0+1, ch = b.y1-b.y0+1;
+    var cv = document.getElementById('hitc'+i);
+    cv.width = cw; cv.height = ch;
+    cv.getContext('2d').drawImage(res.canvas, b.x0, b.y0, cw, ch, 0, 0, cw, ch);
+  });
+  function collect(){
+    return res.items.map(function(_, i){ return document.getElementById('hiti'+i).value.trim(); })
+                    .filter(function(v){ return v; }).join('\n');
+  }
+  document.getElementById('ocr-replace').onclick = function(){ elSeeds.value = collect(); elSeeds.focus(); };
+  document.getElementById('ocr-append').onclick = function(){
+    elSeeds.value = (elSeeds.value.trim() ? elSeeds.value.trim() + '\n' : '') + collect(); elSeeds.focus(); };
+}
+
+function handleBlob(blob){
+  if (!blob) return;
+  elOcr.innerHTML = '<div class="note">辨識中…</div>';
+  var fr = new FileReader();
+  fr.onload = function(){
+    var img = new Image();
+    img.onload = function(){
+      try { showOcr(readDigits(img)); }
+      catch(err){ elOcr.innerHTML = '<div class="note warn">辨識失敗：' + err.message + '</div>'; }
+    };
+    img.onerror = function(){ elOcr.innerHTML = '<div class="note warn">這個檔案不是圖片。</div>'; };
+    img.src = fr.result;
+  };
+  fr.readAsDataURL(blob);
+}
+
+document.addEventListener('paste', function(e){
+  var it = (e.clipboardData || {}).items || [];
+  for (var i=0;i<it.length;i++) if (it[i].type.indexOf('image') === 0){
+    e.preventDefault(); handleBlob(it[i].getAsFile()); return;
+  }
+});
+elDrop.addEventListener('click', function(){ elFile.click(); });
+elDrop.addEventListener('dragover', function(e){ e.preventDefault(); elDrop.classList.add('over'); });
+elDrop.addEventListener('dragleave', function(){ elDrop.classList.remove('over'); });
+elDrop.addEventListener('drop', function(e){
+  e.preventDefault(); elDrop.classList.remove('over');
+  handleBlob(e.dataTransfer.files[0]);
+});
+elFile.addEventListener('change', function(){ handleBlob(elFile.files[0]); });
+
+document.getElementById('go').addEventListener('click', build);
+elSeeds.addEventListener('keydown', function(e){ if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) build(); });
+
+// ---- 由計算器帶參數進來（同站的天賦樹計算器算完後直接跳過來）
+// 例：#seeds=52140,4600&name=name:caspiro&league=亡焰咒海&status=available
+function applyHash(){
+  var h = (location.hash || '').replace(/^#/, '');
+  if (!h) return false;
+  var p = new URLSearchParams(h);
+  var name = p.get('name');
+  if (name && [].some.call(elName.options, function(o){ return o.value === name; })) elName.value = name;
+  var lg = p.get('league');
+  if (lg){
+    if ([].some.call(elLeague.options, function(o){ return o.value === lg; })) {
+      elLeague.value = lg;
+    } else {
+      elLeague.value = '__other__'; elLeagueOther.value = lg;
+    }
+    elLeague.dispatchEvent(new Event('change'));
+  }
+  var st = p.get('status');
+  if (st && [].some.call(elStatus.options, function(o){ return o.value === st; })) elStatus.value = st;
+  var seeds = p.get('seeds');
+  if (seeds) elSeeds.value = seeds.split(/[,\s]+/).filter(Boolean).join('\n');
+  build();
+  return true;
+}
+applyHash();
+window.addEventListener('hashchange', applyHash);
+</script>
+</body>
+</html>

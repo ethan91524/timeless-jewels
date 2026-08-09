@@ -7,7 +7,9 @@
  */
 import treeZh from './tree_zh.json';
 
-const NUM = /[+-]?\d+(?:\.\d+)?/g;
+// 只把純數字換成 #（正負號留在模板裡），要和 build_tree_zh.py 的規則一致
+const NUM = /\d+(?:\.\d+)?/g;
+const SIGN = /[+-]#/g;
 
 const names: Record<string, string> = treeZh.names;
 const stats: Record<string, string> = treeZh.stats;
@@ -21,7 +23,8 @@ export const nodeNameZh = (id: number | string, fallback = ''): string => names[
  */
 export const statZh = (text: string): string => {
   if (!text) return text;
-  const zh = stats[text.replace(NUM, '#').trim()];
+  const key = text.replace(NUM, '#').trim();
+  const zh = stats[key] ?? stats[key.replace(SIGN, '#')];
   if (!zh) return text;
   const nums = text.match(NUM) ?? [];
   let i = 0;

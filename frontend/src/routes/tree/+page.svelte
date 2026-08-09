@@ -617,9 +617,9 @@
   disabled={[...disabled]}>
   {#if !collapsed}
     <div
-      class="w-screen md:w-10/12 lg:w-2/3 xl:w-1/2 2xl:w-5/12 3xl:w-1/3 4xl:w-1/4 md:min-w-[820px] absolute top-0 left-0 bg-black/80 backdrop-blur-sm themed rounded-br-lg max-h-screen">
+      class="w-screen md:w-10/12 lg:w-2/3 xl:w-1/2 2xl:w-5/12 3xl:w-1/3 4xl:w-1/4 md:min-w-[820px] absolute top-0 left-0 bg-black/80 backdrop-blur-sm themed rounded-br-lg max-h-[70vh] md:max-h-screen">
       <div class="p-4 max-h-screen flex flex-col">
-        <div class="flex flex-row justify-between mb-2">
+        <div class="flex flex-row flex-wrap gap-2 justify-between mb-2">
           <div class="flex flex-row items-center">
             <button class="burger-menu mr-3" on:click={() => (collapsed = true)}>
               <div />
@@ -636,7 +636,7 @@
             </h3>
           </div>
           {#if searchResults}
-            <div class="flex flex-row gap-2">
+            <div class="flex flex-row flex-wrap gap-2 items-center">
               {#if results}
                 <Select floatingConfig={{ strategy: 'fixed' }} items={leagues} bind:value={league} on:change={updateUrl} clearable={false} />
                 <Select floatingConfig={{ strategy: 'fixed' }} items={platforms} bind:value={platform} on:change={changePlatform} clearable={false} />

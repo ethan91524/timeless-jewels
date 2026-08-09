@@ -75,9 +75,14 @@
     <div>
       <h1 class="text-white mb-10 text-center">永恆珠寶計算器</h1>
 
-      <a href="{base}/tree">
-        <h2 class="text-white mb-10 text-center underline text-orange-500">天賦樹搜尋</h2>
-      </a>
+      <div class="flex flex-row justify-center gap-6 mb-10">
+        <a href="{base}/tree">
+          <h2 class="text-white text-center underline text-orange-500">天賦樹搜尋</h2>
+        </a>
+        <a href="{base}/jewel-search.html">
+          <h2 class="text-white text-center underline text-emerald-400">交易搜尋器</h2>
+        </a>
+      </div>
 
       <div class="themed">
         <h3 class="mb-2">Timeless Jewel</h3>

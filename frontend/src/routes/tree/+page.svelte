@@ -551,16 +551,31 @@
     5: 'elegant_hubris'
   };
   $: searcherSupported = !!SEARCHER_JEWEL_KEYS[searchJewel];
-  const openInSearcher = () => {
+
+  const searcherHash = (): string => {
     const jewelKey = SEARCHER_JEWEL_KEYS[searchJewel];
-    if (!jewelKey) return;
+    if (!jewelKey) return '';
     const params = new URLSearchParams({
       seeds: [...seedList].sort((a, b) => a - b).join(','),
       name: searchConqueror ? `name:${searchConqueror.toLowerCase()}` : `jewel:${jewelKey}`,
       league: league?.value ?? '',
       status: isTaiwan(platform.value) ? 'available' : 'online'
     });
-    window.open(`${base}/jewel-search.html#${params.toString()}`, '_blank');
+    return `${base}/jewel-search.html#${params.toString()}`;
+  };
+
+  // 直接在這一頁開，網址不用換；想要獨立分頁再按面板右上角那顆。
+  let showSearcher = false;
+  let searcherSrc = '';
+  const toggleSearcher = () => {
+    if (showSearcher) {
+      showSearcher = false;
+      return;
+    }
+    const url = searcherHash();
+    if (!url) return;
+    searcherSrc = url;
+    showSearcher = true;
   };
   let showSeedList = false;
   let copyLabel = '複製全部';
@@ -646,10 +661,10 @@
                 </button>
                 <button
                   class="p-1 px-3 bg-amber-600/50 rounded disabled:bg-amber-900/40 whitespace-nowrap"
-                  title="把這些號碼帶到交易搜尋器（自動分批＋冷卻鎖，避免被限速）"
-                  on:click={openInSearcher}
+                  title="在這一頁開交易搜尋器（自動分批＋冷卻鎖，避免被限速）"
+                  on:click={toggleSearcher}
                   disabled={seedList.length === 0 || !searcherSupported}>
-                  交易搜尋器
+                  交易搜尋器 {showSearcher ? '✕' : ''}
                 </button>
                 <button
                   class="p-1 px-3 bg-blue-500/40 rounded disabled:bg-blue-900/40"
@@ -926,6 +941,27 @@
       <div />
       <div />
     </button>
+  {/if}
+
+  {#if showSearcher}
+    <!-- 交易搜尋器就開在這一頁：同站 iframe，網址不用換 -->
+    <div class="fixed inset-0 z-50 flex flex-col bg-black/70 backdrop-blur-sm p-4 md:p-8">
+      <div class="flex flex-row justify-between items-center mb-2 text-sm">
+        <span class="text-amber-300">交易搜尋器　·　已帶入 {seedList.length} 組號碼</span>
+        <div class="flex flex-row gap-2">
+          <a
+            class="p-1 px-3 bg-neutral-100/20 rounded"
+            href={searcherSrc}
+            target="_blank"
+            rel="noopener">另開分頁</a>
+          <button class="p-1 px-3 bg-neutral-100/20 rounded" on:click={() => (showSearcher = false)}>關閉</button>
+        </div>
+      </div>
+      <iframe
+        class="flex-grow w-full rounded border border-amber-700/50 bg-[#0d0d10]"
+        title="交易搜尋器"
+        src={searcherSrc} />
+    </div>
   {/if}
 
   <div class="text-orange-500 absolute bottom-0 right-0 m-2">

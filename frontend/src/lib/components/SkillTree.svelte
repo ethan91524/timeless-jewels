@@ -505,6 +505,32 @@
     return Math.hypot(a.x - b.x, a.y - b.y);
   };
 
+  // 各類節點的可點擊半徑，與 render 內畫的一致
+  const touchRadius = (node: Node): number =>
+    node.isKeystone ? 110 : node.isNotable || node.isJewelSocket ? 70 : node.isMastery ? 0 : 50;
+
+  /**
+   * 直接算出座標下的節點。
+   *
+   * hoveredNode 是在重繪時才更新的，觸控裝置按下前沒有任何 move 事件，
+   * 讀到的會是上一幀的空值 —— 手機因此點不到天賦。這裡當場算就沒這個問題。
+   */
+  const nodeAt = (pos: { x: number; y: number }): Node | undefined => {
+    let best: Node | undefined;
+    let bestDistance = Infinity;
+    for (const nodeId of Object.keys(drawnNodes)) {
+      const node = drawnNodes[nodeId];
+      const radius = touchRadius(node);
+      if (!radius) continue;
+      const d = distance(calculateNodePos(node, offsetX, offsetY, scaling), pos);
+      if (d < radius / scaling && d < bestDistance) {
+        best = node;
+        bestDistance = d;
+      }
+    }
+    return best;
+  };
+
   let down = false;
   const mouseDown = (event: PointerEvent) => {
     const pos = toCanvas(event);
@@ -527,8 +553,9 @@
 
     mousePos = pos;
 
-    if (hoveredNode) {
-      clickNode(hoveredNode);
+    const target = nodeAt(pos) ?? hoveredNode;
+    if (target) {
+      clickNode(target);
     }
   };
 

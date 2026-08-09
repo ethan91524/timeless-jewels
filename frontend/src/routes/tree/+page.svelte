@@ -22,6 +22,7 @@
   import { data, calculator } from '../../lib/types';
   import { onMount } from 'svelte';
   import { jewelLabel, conquerorLabel } from '../../lib/zh';
+  import { base } from '$app/paths';
 
   const searchParams = $page.url.searchParams;
 
@@ -539,6 +540,28 @@
 
   // 符合條件的種子號碼清單：可整包複製，貼進自己的交易搜尋器用
   $: seedList = searchResults ? searchResults.raw.map((r) => r.seed) : [];
+
+  // 同站的交易搜尋器（static/jewel-search.html）：把結果整包帶過去，
+  // 那邊會自動分批＋加冷卻鎖，適合號碼多的時候慢慢開。
+  const SEARCHER_JEWEL_KEYS: Record<number, string> = {
+    1: 'glorious_vanity',
+    2: 'lethal_pride',
+    3: 'brutal_restraint',
+    4: 'militant_faith',
+    5: 'elegant_hubris'
+  };
+  $: searcherSupported = !!SEARCHER_JEWEL_KEYS[searchJewel];
+  const openInSearcher = () => {
+    const jewelKey = SEARCHER_JEWEL_KEYS[searchJewel];
+    if (!jewelKey) return;
+    const params = new URLSearchParams({
+      seeds: [...seedList].sort((a, b) => a - b).join(','),
+      name: searchConqueror ? `name:${searchConqueror.toLowerCase()}` : `jewel:${jewelKey}`,
+      league: league?.value ?? '',
+      status: isTaiwan(platform.value) ? 'available' : 'online'
+    });
+    window.open(`${base}/jewel-search.html#${params.toString()}`, '_blank');
+  };
   let showSeedList = false;
   let copyLabel = '複製全部';
   const copySeeds = async () => {
@@ -620,6 +643,13 @@
                   on:click={() => (showSeedList = !showSeedList)}
                   disabled={seedList.length === 0}>
                   號碼 ({seedList.length}) {showSeedList ? '^' : 'V'}
+                </button>
+                <button
+                  class="p-1 px-3 bg-amber-600/50 rounded disabled:bg-amber-900/40 whitespace-nowrap"
+                  title="把這些號碼帶到交易搜尋器（自動分批＋冷卻鎖，避免被限速）"
+                  on:click={openInSearcher}
+                  disabled={seedList.length === 0 || !searcherSupported}>
+                  交易搜尋器
                 </button>
                 <button
                   class="p-1 px-3 bg-blue-500/40 rounded disabled:bg-blue-900/40"

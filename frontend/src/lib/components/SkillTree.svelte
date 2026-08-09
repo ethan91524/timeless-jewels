@@ -478,18 +478,54 @@
   let startX = 0;
   let startY = 0;
 
+  let container: HTMLDivElement;
+
+  // 座標一律換算成畫布座標再用。原本用 event.offsetX（相對於「事件目標」），
+  // 手指或滑鼠一滑到畫布以外的元素上，座標系就整個換掉 → 畫面會跳、像卡住。
+  const toCanvas = (event: { clientX: number; clientY: number }) => {
+    const rect = container?.getBoundingClientRect();
+    return {
+      x: event.clientX - (rect?.left ?? 0),
+      y: event.clientY - (rect?.top ?? 0)
+    };
+  };
+
+  // 多指：兩指就是縮放，一指才是拖曳
+  const pointers = new Map<number, { x: number; y: number }>();
+  let pinchDistance = 0;
+  let pinchScaling = 0;
+
+  const pointerList = () => [...pointers.values()];
+  const pinchCenter = () => {
+    const [a, b] = pointerList();
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  };
+  const pinchSpread = () => {
+    const [a, b] = pointerList();
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  };
+
   let down = false;
-  const mouseDown = (event: MouseEvent) => {
+  const mouseDown = (event: PointerEvent) => {
+    const pos = toCanvas(event);
+    pointers.set(event.pointerId, pos);
+    // 抓住這根指頭/游標，移出畫布也還收得到事件
+    (event.target as Element)?.setPointerCapture?.(event.pointerId);
+
+    if (pointers.size === 2) {
+      down = false;
+      pinchDistance = pinchSpread();
+      pinchScaling = scaling;
+      return;
+    }
+
     down = true;
-    downX = event.offsetX;
-    downY = event.offsetY;
+    downX = pos.x;
+    downY = pos.y;
     startX = offsetX;
     startY = offsetY;
 
-    mousePos = {
-      x: event.offsetX,
-      y: event.offsetY
-    };
+    mousePos = pos;
 
     if (hoveredNode) {
       clickNode(hoveredNode);
@@ -497,40 +533,68 @@
   };
 
   const mouseUp = (event: PointerEvent) => {
-    if (event.type === 'pointerup') {
+    if (event.type === 'pointerup' || event.type === 'pointercancel') {
+      pointers.delete(event.pointerId);
       down = false;
+      pinchDistance = 0;
+      // 兩指放開其中一根：剩下那根重新當作拖曳起點，畫面才不會跳
+      if (pointers.size === 1) {
+        const [p] = pointerList();
+        downX = p.x;
+        downY = p.y;
+        startX = offsetX;
+        startY = offsetY;
+        down = true;
+      }
     }
 
-    mousePos = {
-      x: event.offsetX,
-      y: event.offsetY
-    };
+    mousePos = toCanvas(event);
   };
 
-  const mouseMove = (event: MouseEvent) => {
+  const mouseMove = (event: PointerEvent) => {
+    const pos = toCanvas(event);
+    if (pointers.has(event.pointerId)) {
+      pointers.set(event.pointerId, pos);
+    }
+
+    if (pointers.size >= 2 && pinchDistance > 0) {
+      // 捏合縮放：以兩指中點為錨點，跟滾輪縮放同一套公式
+      const spread = pinchSpread();
+      if (spread > 0) {
+        const newScaling = Math.min(30, Math.max(3, pinchScaling * (pinchDistance / spread)));
+        const dScale = newScaling - scaling;
+        if (dScale !== 0) {
+          const center = pinchCenter();
+          offsetX += center.x * dScale;
+          offsetY += center.y * dScale;
+          scaling = newScaling;
+        }
+      }
+      mousePos = pos;
+      return;
+    }
+
     if (down) {
-      offsetX = startX - (downX - event.offsetX) * scaling;
-      offsetY = startY - (downY - event.offsetY) * scaling;
+      offsetX = startX - (downX - pos.x) * scaling;
+      offsetY = startY - (downY - pos.y) * scaling;
     }
 
-    mousePos = {
-      x: event.offsetX,
-      y: event.offsetY
-    };
+    mousePos = pos;
   };
 
-  const onScroll = (event: WheelEvent) => {
+  const onScrollRaw = (event: WheelEvent) => {
     // Keep the world point under the cursor invariant during zoom. From
     // toCanvasCoords: canvasX = (worldX + |min_x| + offsetX) / scaling, so
     // for a fixed canvas point P the offset must change by P * Δscale
     // when scaling changes. Using the actual clamped delta (not assuming ±1)
     // makes zoom track the mouse correctly for trackpads, hi-res wheels, and
     // at the scale clamps.
+    const pos = toCanvas(event);
     const newScaling = Math.min(30, Math.max(3, scaling + event.deltaY / 100));
     const dScale = newScaling - scaling;
     if (dScale !== 0) {
-      offsetX += event.offsetX * dScale;
-      offsetY += event.offsetY * dScale;
+      offsetX += pos.x * dScale;
+      offsetY += pos.y * dScale;
       scaling = newScaling;
     }
 
@@ -557,11 +621,15 @@
   }
 </script>
 
-<svelte:window on:pointerup={mouseUp} on:pointermove={mouseMove} on:resize={resize} />
+<svelte:window
+  on:pointerup={mouseUp}
+  on:pointercancel={mouseUp}
+  on:pointermove={mouseMove}
+  on:resize={resize} />
 
 {#if width && height}
-  <div on:resize={resize} style="touch-action: none; cursor: {cursor}">
-    <Canvas {width} {height} on:pointerdown={mouseDown} on:wheel={onScroll}>
+  <div bind:this={container} on:resize={resize} style="touch-action: none; cursor: {cursor}">
+    <Canvas {width} {height} on:pointerdown={mouseDown} on:wheel={onScrollRaw}>
       <Layer {render} />
     </Canvas>
     <slot />

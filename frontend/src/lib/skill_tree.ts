@@ -1,5 +1,6 @@
 import type { Translation, Node, SkillTreeData, Group, Sprite, TranslationFile } from './skill_tree_types';
 import { data } from './types';
+import { localizeTree, statZh } from './tree_zh';
 
 export let skillTree: SkillTreeData;
 
@@ -15,6 +16,8 @@ export const passiveToTree: Record<number, number> = {};
 
 export const loadSkillTree = () => {
   skillTree = JSON.parse(data.SkillTree);
+  // 換成台服官方的中文名稱與詞綴（節點 id 兩邊相同，見 tree_zh.ts）
+  localizeTree(skillTree);
   console.log('Loaded skill tree', skillTree);
 
   Object.keys(skillTree.groups).forEach((groupId) => {
@@ -340,7 +343,7 @@ export const translateStat = (id: number, roll?: number | undefined): string => 
   const stat = getStat(id);
   const translation = inverseTranslations[stat.ID];
   if (roll) {
-    return formatStats(translation, roll) || stat.ID;
+    return statZh(formatStats(translation, roll) || stat.ID);
   }
 
   let translationText = stat.Text || stat.ID;
@@ -348,7 +351,7 @@ export const translateStat = (id: number, roll?: number | undefined): string => 
     translationText = translation.list[0].string;
     translationText = translationText.replace(/\{\d(?::(.*?)d(.*?))\}/, '$1#$2').replace(/\{\d\}/, '#');
   }
-  return translationText;
+  return statZh(translationText);
 };
 
 export {

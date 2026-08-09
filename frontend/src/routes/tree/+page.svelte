@@ -617,7 +617,7 @@
   disabled={[...disabled]}>
   {#if !collapsed}
     <div
-      class="w-screen md:w-10/12 lg:w-2/3 xl:w-1/2 2xl:w-5/12 3xl:w-1/3 4xl:w-1/4 min-w-[820px] absolute top-0 left-0 bg-black/80 backdrop-blur-sm themed rounded-br-lg max-h-screen">
+      class="w-screen md:w-10/12 lg:w-2/3 xl:w-1/2 2xl:w-5/12 3xl:w-1/3 4xl:w-1/4 md:min-w-[820px] absolute top-0 left-0 bg-black/80 backdrop-blur-sm themed rounded-br-lg max-h-screen">
       <div class="p-4 max-h-screen flex flex-col">
         <div class="flex flex-row justify-between mb-2">
           <div class="flex flex-row items-center">
@@ -638,8 +638,8 @@
           {#if searchResults}
             <div class="flex flex-row gap-2">
               {#if results}
-                <Select items={leagues} bind:value={league} on:change={updateUrl} clearable={false} />
-                <Select items={platforms} bind:value={platform} on:change={changePlatform} clearable={false} />
+                <Select floatingConfig={{ strategy: 'fixed' }} items={leagues} bind:value={league} on:change={updateUrl} clearable={false} />
+                <Select floatingConfig={{ strategy: 'fixed' }} items={platforms} bind:value={platform} on:change={changePlatform} clearable={false} />
                 <button
                   class="p-1 px-3 bg-blue-500/40 rounded disabled:bg-blue-900/40 whitespace-nowrap"
                   on:click={() =>
@@ -688,12 +688,12 @@
         </div>
 
         {#if !results}
-          <Select items={jewels} bind:value={selectedJewel} on:change={changeJewel} />
+          <Select floatingConfig={{ strategy: 'fixed' }} items={jewels} bind:value={selectedJewel} on:change={changeJewel} />
 
           {#if selectedJewel}
             <div class="mt-4">
               <h3 class="mb-2">人名（征服者）</h3>
-              <Select items={conquerorItems} bind:value={selectedConqueror} on:change={updateUrl} />
+              <Select floatingConfig={{ strategy: 'fixed' }} items={conquerorItems} bind:value={selectedConqueror} on:change={updateUrl} />
               {#if isAnyConqueror}
                 <div class="mt-2 text-sm text-neutral-400">
                   搜尋會排除鑰石天賦——那是唯一會因人名而不同的天賦。交易連結會同時比對所有人名。
@@ -736,7 +736,7 @@
                   <div class="flex flex-row mt-4 items-end">
                     <div class="flex-grow">
                       <h3 class="mb-2">排序方式</h3>
-                      <Select items={sortResults} bind:value={sortOrder} />
+                      <Select floatingConfig={{ strategy: 'fixed' }} items={sortResults} bind:value={sortOrder} />
                     </div>
                     <div class="ml-2">
                       <button
@@ -810,7 +810,7 @@
               {:else if mode === 'stats'}
                 <div class="mt-4">
                   <h3 class="mb-2">加入詞綴條件</h3>
-                  <Select items={statItems} on:change={selectStat} bind:this={statSelector} />
+                  <Select floatingConfig={{ strategy: 'fixed' }} items={statItems} on:change={selectStat} bind:this={statSelector} />
                 </div>
                 {#if Object.keys(selectedStats).length > 0}
                   <div class="mt-4 flex flex-col overflow-auto min-h-[100px]">

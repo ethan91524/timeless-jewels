@@ -384,3 +384,40 @@ describe('constructQueries — multi-batch links instead of silent truncation', 
     expect(constructQueries(5, 'Caspiro', [])).toEqual([]);
   });
 });
+
+describe('台服（TW platform）', () => {
+  it('tradeUrl 指向台服交易站，聯盟名做 URL 編碼', () => {
+    expect(tradeUrl('TW', '亡焰咒海')).toBe('https://pathofexile.tw/trade/search/' + encodeURIComponent('亡焰咒海'));
+  });
+
+  it('國際服網址不受影響', () => {
+    expect(tradeUrl('PC', 'Standard')).toBe('https://www.pathofexile.com/trade/search/Standard');
+    expect(tradeUrl('Xbox', 'Standard')).toBe('https://www.pathofexile.com/trade/search/xbox/Standard');
+  });
+
+  it('台服查詢狀態＝available（即刻購買以及面對面交易）', () => {
+    const q = constructQuery(5, 'Caspiro', seeds(52140, 4600), false, 'TW');
+    expect(q.query.status.option).toBe('available');
+  });
+
+  it('國際服維持原本的 any / online', () => {
+    expect(constructQuery(5, 'Caspiro', seeds(52140), false, 'PC').query.status.option).toBe('any');
+    expect(constructQuery(5, 'Caspiro', seeds(52140), true, 'PC').query.status.option).toBe('online');
+    // 未指定平台時的預設行為必須和改動前一樣
+    expect(constructQuery(5, 'Caspiro', seeds(52140)).query.status.option).toBe('any');
+  });
+
+  it('constructQueries 會把平台傳下去', () => {
+    const qs = constructQueries(5, 'Caspiro', seedsUpTo(400), false, 'TW');
+    expect(qs.length).toBeGreaterThan(1);
+    for (const q of qs) {
+      expect(q.query.status.option).toBe('available');
+    }
+  });
+
+  it('台服的種子過濾條件本身和國際服一樣', () => {
+    const tw = constructQuery(5, 'Caspiro', seeds(52140, 4600), false, 'TW');
+    const pc = constructQuery(5, 'Caspiro', seeds(52140, 4600), false, 'PC');
+    expect(tw.query.stats).toEqual(pc.query.stats);
+  });
+});

@@ -29,7 +29,7 @@
         class="text-lg w-full p-2 px-4 bg-neutral-500/30 rounded flex flex-row justify-between mb-2"
         on:click={() => (expandedGroup = expandedGroup === k ? '' : k)}>
         <span>
-          {k} Match{k > 1 ? 'es' : ''} [{searchResults.grouped[k].length}]
+          符合 {k} 項 [{searchResults.grouped[k].length}]
         </span>
         <span>
           {expandedGroup === k ? '^' : 'V'}
@@ -44,7 +44,14 @@
             itemCount={searchResults.grouped[k].length}
             itemSize={searchResults.grouped[k].map(computeSize)}>
             <div slot="item" let:index let:style {style}>
-              <SearchResult set={searchResults.grouped[k][index]} {highlight} {jewel} {conqueror} {platform} {league} {isLegacyTradersMode} />
+              <SearchResult
+                set={searchResults.grouped[k][index]}
+                {highlight}
+                {jewel}
+                {conqueror}
+                {platform}
+                {league}
+                {isLegacyTradersMode} />
             </div>
           </VirtualList>
         </div>
@@ -59,7 +66,14 @@
       itemCount={searchResults.raw.length}
       itemSize={searchResults.raw.map(computeSize)}>
       <div slot="item" let:index let:style {style}>
-        <SearchResult set={searchResults.raw[index]} {highlight} {jewel} {conqueror} {platform} {league} {isLegacyTradersMode} />
+        <SearchResult
+          set={searchResults.raw[index]}
+          {highlight}
+          {jewel}
+          {conqueror}
+          {platform}
+          {league}
+          {isLegacyTradersMode} />
       </div>
     </VirtualList>
   </div>

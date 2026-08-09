@@ -354,10 +354,13 @@ export const translateStat = (id: number, roll?: number | undefined): string => 
 export {
   constructQuery,
   constructQueries,
+  isTaiwan,
   openQuery,
   openTrade,
   seedsPerQuery,
   tradeStatNames,
-  tradeUrl
+  tradeUrl,
+  TW_LEAGUES,
+  TW_PLATFORM
 } from './trade';
 export type { TradeQuery } from './trade';

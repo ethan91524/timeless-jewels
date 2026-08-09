@@ -4,7 +4,16 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import type { Node } from '../../lib/skill_tree_types';
-  import { getAffectedNodes, skillTree, translateStat, constructQueries, openQuery, seedsPerQuery } from '../../lib/skill_tree';
+  import {
+    getAffectedNodes,
+    skillTree,
+    translateStat,
+    constructQueries,
+    openQuery,
+    seedsPerQuery,
+    isTaiwan,
+    TW_LEAGUES
+  } from '../../lib/skill_tree';
   import { syncWrap } from '../../lib/worker';
   import { proxy } from 'comlink';
   import type { ReverseSearchConfig, StatConfig, TradeQuery } from '../../lib/skill_tree';
@@ -12,12 +21,13 @@
   import { statValues } from '../../lib/values';
   import { data, calculator } from '../../lib/types';
   import { onMount } from 'svelte';
+  import { jewelLabel, conquerorLabel } from '../../lib/zh';
 
   const searchParams = $page.url.searchParams;
 
   const jewels = Object.keys(data.TimelessJewels).map((k) => ({
     value: parseInt(k),
-    label: data.TimelessJewels[k]
+    label: jewelLabel(data.TimelessJewels[k])
   }));
 
   let selectedJewel = searchParams.has('jewel') ? jewels.find((j) => j.value == searchParams.get('jewel')) : undefined;
@@ -25,7 +35,7 @@
   $: conquerors = selectedJewel
     ? Object.keys(data.TimelessJewelConquerors[selectedJewel.value]).map((k) => ({
         value: k,
-        label: k
+        label: conquerorLabel(k)
       }))
     : [];
 
@@ -33,12 +43,13 @@
   // keystones gives identical results for all of them. "Any" exploits that to
   // build trade links matching every conqueror at once.
   const ANY_CONQUEROR = 'Any';
-  $: conquerorItems = [...conquerors, { value: ANY_CONQUEROR, label: ANY_CONQUEROR }];
+  $: conquerorItems = [...conquerors, { value: ANY_CONQUEROR, label: '不限人名' }];
 
   let selectedConqueror = searchParams.has('conqueror')
     ? {
         value: searchParams.get('conqueror'),
-        label: searchParams.get('conqueror')
+        label:
+          searchParams.get('conqueror') === ANY_CONQUEROR ? '不限人名' : conquerorLabel(searchParams.get('conqueror'))
       }
     : undefined;
 
@@ -443,23 +454,29 @@
     mode = 'seed';
     seed = newSeed;
     selectedJewel = jewel;
-    selectedConqueror = { label: conqueror, value: conqueror };
+    selectedConqueror = { label: conquerorLabel(conqueror), value: conqueror };
     updateUrl();
   };
 
   let collapsed = false;
 
   const platforms = [
-  {
-    value: 'PC',
-    label: 'PC'
-  }, {
-    value: 'Xbox',
-    label: 'Xbox'
-  }, {
-    value: 'Playstation',
-    label: 'Playstation'
-  }
+    {
+      value: 'TW',
+      label: 'PC 台服'
+    },
+    {
+      value: 'PC',
+      label: 'PC 國際服'
+    },
+    {
+      value: 'Xbox',
+      label: 'Xbox'
+    },
+    {
+      value: 'Playstation',
+      label: 'Playstation'
+    }
   ];
 
   let platform = platforms.find((p) => p.value === localStorage.getItem('platform')) || platforms[0];
@@ -468,11 +485,11 @@
   const TradersModes = {
     legacy: {
       value: 'legacy',
-      label: 'Legacy Traders'
+      label: '只看在線賣家'
     },
     modern: {
       value: 'modern',
-      label: 'All Traders'
+      label: '全部賣家'
     }
   };
 
@@ -481,14 +498,35 @@
 
   let leagues: { value: string; label: string }[] = [];
   let league: { value: string; label: string } | undefined;
-  const getLeagues = async () => {
-    const response = await fetch('https://api.poe.watch/leagues');
-    const responseJson = await response.json();
-    leagues = responseJson.map((l: { name: string }) => ({ value: l.name, label: l.name }));
-    league = leagues.find((l) => l.value === localStorage.getItem('league')) || leagues[0];
+
+  // 台服有自己的交易站與聯盟名稱，poe.watch 只收國際服，所以分開處理。
+  const twLeagues = TW_LEAGUES.map((l) => ({ value: l, label: l }));
+  let globalLeagues: { value: string; label: string }[] = [];
+
+  const pickLeague = () => {
+    leagues = isTaiwan(platform.value) ? twLeagues : globalLeagues;
+    const stored = localStorage.getItem(isTaiwan(platform.value) ? 'league_tw' : 'league');
+    league = leagues.find((l) => l.value === stored) || leagues[0];
   };
 
-  $: league && localStorage.setItem('league', league.value);
+  const getLeagues = async () => {
+    try {
+      const response = await fetch('https://api.poe.watch/leagues');
+      const responseJson = await response.json();
+      globalLeagues = responseJson.map((l: { name: string }) => ({ value: l.name, label: l.name }));
+    } catch (e) {
+      console.warn('failed to fetch global leagues', e);
+      globalLeagues = [{ value: 'Standard', label: 'Standard' }];
+    }
+    pickLeague();
+  };
+
+  const changePlatform = () => {
+    pickLeague();
+    updateUrl();
+  };
+
+  $: league && localStorage.setItem(isTaiwan(platform.value) ? 'league_tw' : 'league', league.value);
 
   // A trade link holds a limited number of seeds, so a large result set is
   // spread over several links rather than being truncated.
@@ -496,8 +534,23 @@
   let tradeQueries: TradeQuery[] = [];
   $: tradeQueries =
     searchResults && searchResults.raw.length
-      ? constructQueries(searchJewel, searchConqueror, searchResults.raw, isLegacyTradersMode)
+      ? constructQueries(searchJewel, searchConqueror, searchResults.raw, isLegacyTradersMode, platform.value)
       : [];
+
+  // 符合條件的種子號碼清單：可整包複製，貼進自己的交易搜尋器用
+  $: seedList = searchResults ? searchResults.raw.map((r) => r.seed) : [];
+  let showSeedList = false;
+  let copyLabel = '複製全部';
+  const copySeeds = async () => {
+    try {
+      await navigator.clipboard.writeText(seedList.join('\n'));
+      copyLabel = '已複製 ✓';
+    } catch (e) {
+      console.warn('clipboard failed', e);
+      copyLabel = '複製失敗';
+    }
+    setTimeout(() => (copyLabel = '複製全部'), 1500);
+  };
 
   $: tradeBatchSize = seedsPerQuery(searchJewel, searchConqueror);
   $: tradeBatchSizes = tradeQueries.map((_, i) =>
@@ -538,9 +591,9 @@
 
             <h3 class="flex-grow">
               {#if results}
-                <span>Results</span>
+                <span>搜尋結果</span>
               {:else}
-                <span>Timeless Jewel</span>
+                <span>永恆珠寶</span>
               {/if}
             </h3>
           </div>
@@ -548,7 +601,7 @@
             <div class="flex flex-row gap-2">
               {#if results}
                 <Select items={leagues} bind:value={league} on:change={updateUrl} clearable={false} />
-                <Select items={platforms} bind:value={platform} on:change={updateUrl} clearable={false} />
+                <Select items={platforms} bind:value={platform} on:change={changePlatform} clearable={false} />
                 <button
                   class="p-1 px-3 bg-blue-500/40 rounded disabled:bg-blue-900/40 whitespace-nowrap"
                   on:click={() =>
@@ -557,17 +610,23 @@
                       : openQuery(tradeQueries[0], platform.value, league.value)}
                   disabled={tradeQueries.length === 0}>
                   {#if tradeQueries.length > 1}
-                    Trade ({tradeQueries.length}) {showTradeLinks ? '^' : 'V'}
+                    交易 ({tradeQueries.length}) {showTradeLinks ? '^' : 'V'}
                   {:else}
-                    Trade
+                    交易
                   {/if}
+                </button>
+                <button
+                  class="p-1 px-3 bg-emerald-600/50 rounded disabled:bg-emerald-900/40 whitespace-nowrap"
+                  on:click={() => (showSeedList = !showSeedList)}
+                  disabled={seedList.length === 0}>
+                  號碼 ({seedList.length}) {showSeedList ? '^' : 'V'}
                 </button>
                 <button
                   class="p-1 px-3 bg-blue-500/40 rounded disabled:bg-blue-900/40"
                   class:grouped={groupResults}
                   on:click={() => (groupResults = !groupResults)}
                   disabled={!searchResults}>
-                  Grouped
+                  分組
                 </button>
                 <button
                   class="p-1 px-3 bg-blue-500/40 rounded disabled:bg-blue-900/40 whitespace-nowrap"
@@ -577,7 +636,7 @@
                 </button>
               {/if}
               <button class="bg-neutral-100/20 px-4 p-1 rounded" on:click={() => (results = !results)}>
-                {results ? 'Config' : 'Results'}
+                {results ? '設定' : '結果'}
               </button>
             </div>
           {/if}
@@ -588,12 +647,11 @@
 
           {#if selectedJewel}
             <div class="mt-4">
-              <h3 class="mb-2">Conqueror</h3>
+              <h3 class="mb-2">人名（征服者）</h3>
               <Select items={conquerorItems} bind:value={selectedConqueror} on:change={updateUrl} />
               {#if isAnyConqueror}
                 <div class="mt-2 text-sm text-neutral-400">
-                  Keystones are excluded from the search — they are the only passive the conqueror changes. Trade links
-                  will match every conqueror.
+                  搜尋會排除鑰石天賦——那是唯一會因人名而不同的天賦。交易連結會同時比對所有人名。
                 </div>
               {/if}
             </div>
@@ -605,16 +663,16 @@
                   class:selected={mode === 'seed'}
                   on:click={() => setMode('seed')}
                   disabled={isAnyConqueror}>
-                  Enter Seed
+                  直接輸入種子
                 </button>
                 <button class="selection-button" class:selected={mode === 'stats'} on:click={() => setMode('stats')}>
-                  Select Stats
+                  依詞綴搜尋
                 </button>
               </div>
 
               {#if mode === 'seed'}
                 <div class="mt-4">
-                  <h3 class="mb-2">Seed</h3>
+                  <h3 class="mb-2">種子號碼</h3>
                   <input
                     type="number"
                     bind:value={seed}
@@ -623,8 +681,8 @@
                     max={data.TimelessJewelSeedRanges[selectedJewel.value].Max} />
                   {#if seed < data.TimelessJewelSeedRanges[selectedJewel.value].Min || seed > data.TimelessJewelSeedRanges[selectedJewel.value].Max}
                     <div class="mt-2">
-                      Seed must be between {data.TimelessJewelSeedRanges[selectedJewel.value].Min}
-                      and {data.TimelessJewelSeedRanges[selectedJewel.value].Max}
+                      種子號碼必須介於 {data.TimelessJewelSeedRanges[selectedJewel.value].Min}
+                      到 {data.TimelessJewelSeedRanges[selectedJewel.value].Max} 之間
                     </div>
                   {/if}
                 </div>
@@ -632,7 +690,7 @@
                 {#if seed >= data.TimelessJewelSeedRanges[selectedJewel.value].Min && seed <= data.TimelessJewelSeedRanges[selectedJewel.value].Max}
                   <div class="flex flex-row mt-4 items-end">
                     <div class="flex-grow">
-                      <h3 class="mb-2">Sort Order</h3>
+                      <h3 class="mb-2">排序方式</h3>
                       <Select items={sortResults} bind:value={sortOrder} />
                     </div>
                     <div class="ml-2">
@@ -640,7 +698,7 @@
                         class="bg-neutral-500/20 p-2 px-4 rounded"
                         class:selected={colored}
                         on:click={() => (colored = !colored)}>
-                        Colors
+                        顏色
                       </button>
                     </div>
                     <div class="ml-2">
@@ -648,7 +706,7 @@
                         class="bg-neutral-500/20 p-2 px-4 rounded"
                         class:selected={split}
                         on:click={() => (split = !split)}>
-                        Split
+                        分開顯示
                       </button>
                     </div>
                   </div>
@@ -670,7 +728,7 @@
                     </ul>
                   {:else}
                     <div class="overflow-auto mt-4">
-                      <h3>Notables</h3>
+                      <h3>核心天賦</h3>
                       <ul class="mt-1" class:rainbow={colored}>
                         {#each sortCombined(combineResults(seedResults, colored, 'notables'), sortOrder.value) as r}
                           <li>
@@ -686,7 +744,7 @@
                         {/each}
                       </ul>
 
-                      <h3 class="mt-2">Smalls</h3>
+                      <h3 class="mt-2">一般天賦</h3>
                       <ul class="mt-1" class:rainbow={colored}>
                         {#each sortCombined(combineResults(seedResults, colored, 'passives'), sortOrder.value) as r}
                           <li>
@@ -706,7 +764,7 @@
                 {/if}
               {:else if mode === 'stats'}
                 <div class="mt-4">
-                  <h3 class="mb-2">Add Stat</h3>
+                  <h3 class="mb-2">加入詞綴條件</h3>
                   <Select items={statItems} on:change={selectStat} bind:this={statSelector} />
                 </div>
                 {#if Object.keys(selectedStats).length > 0}
@@ -723,11 +781,11 @@
                         </div>
                         <div class="mt-2 flex flex-row">
                           <div class="mr-4 flex flex-row items-center">
-                            <div class="mr-2">Min:</div>
+                            <div class="mr-2">最低值：</div>
                             <input type="number" min="0" bind:value={selectedStats[s].min} />
                           </div>
                           <div class="flex flex-row items-center">
-                            <div class="mr-2">Weight:</div>
+                            <div class="mr-2">權重：</div>
                             <input type="number" min="0" bind:value={selectedStats[s].weight} />
                           </div>
                         </div>
@@ -736,7 +794,7 @@
                   </div>
                   <div class="flex flex-col mt-2">
                     <div class="flex flex-row items-center">
-                      <div class="mr-2 min-w-fit">Min Total Weight:</div>
+                      <div class="mr-2 min-w-fit">最低總權重：</div>
                       <input type="number" min="0" bind:value={minTotalWeight} />
                     </div>
                   </div>
@@ -746,25 +804,25 @@
                         class="p-2 px-2 bg-yellow-500/40 rounded disabled:bg-yellow-900/40 mr-2"
                         on:click={selectAll}
                         disabled={searching || disabled.size == 0}>
-                        Select All
+                        全選
                       </button>
                       <button
                         class="p-2 px-2 bg-yellow-500/40 rounded disabled:bg-yellow-900/40 mr-2"
                         on:click={selectAllNotables}
                         disabled={searching || disabled.size == 0}>
-                        Notables
+                        只選核心
                       </button>
                       <button
                         class="p-2 px-2 bg-yellow-500/40 rounded disabled:bg-yellow-900/40 mr-2"
                         on:click={selectAllPassives}
                         disabled={searching || disabled.size == 0}>
-                        Passives
+                        只選一般
                       </button>
                       <button
                         class="p-2 px-2 bg-yellow-500/40 rounded disabled:bg-yellow-900/40 flex-grow"
                         on:click={deselectAll}
                         disabled={searching || disabled.size >= affectedNodes.length}>
-                        Deselect
+                        全部取消
                       </button>
                     </div>
                     <div class="flex flex-row mt-2">
@@ -775,7 +833,7 @@
                         {#if searching}
                           {currentSeed} / {data.TimelessJewelSeedRanges[selectedJewel.value].Max}
                         {:else}
-                          Search
+                          開始搜尋
                         {/if}
                       </button>
                     </div>
@@ -784,13 +842,27 @@
               {/if}
 
               {#if !circledNode}
-                <h2 class="mt-4">Click on a jewel socket</h2>
+                <h2 class="mt-4">請先在天賦樹上點一個珠寶插槽</h2>
               {/if}
             {/if}
           {/if}
         {/if}
 
         {#if searchResults && results}
+          {#if showSeedList}
+            <!-- 符合條件的所有種子號碼，整包複製後可貼進自己的交易搜尋器 -->
+            <div class="my-2 shrink-0 border border-emerald-500/40 rounded p-2">
+              <div class="flex flex-row justify-between items-center mb-2">
+                <span class="text-sm text-neutral-300">符合條件的號碼（{seedList.length} 組，由小到大）</span>
+                <button class="p-1 px-3 bg-emerald-600/50 rounded text-sm" on:click={copySeeds}>{copyLabel}</button>
+              </div>
+              <textarea
+                class="w-full h-28 bg-black/40 rounded p-2 font-mono text-sm"
+                readonly
+                on:focus={(e) => e.currentTarget.select()}
+                value={[...seedList].sort((a, b) => a - b).join('\n')} />
+            </div>
+          {/if}
           {#if showTradeLinks}
             <!-- A loose search can produce hundreds of batches; keep them from
                  pushing the results list off screen. -->
@@ -799,12 +871,20 @@
                 <button
                   class="p-1 px-3 bg-blue-500/40 rounded"
                   on:click={() => openQuery(query, platform.value, league.value)}>
-                  Batch {i + 1} ({tradeBatchSizes[i]} seeds)
+                  第 {i + 1} 批（{tradeBatchSizes[i]} 個）
                 </button>
               {/each}
             </div>
           {/if}
-          <SearchResults {searchResults} {groupResults} {highlight} jewel={searchJewel} conqueror={searchConqueror} platform={platform.value} league={league.value} isLegacyTradersMode={isLegacyTradersMode} />
+          <SearchResults
+            {searchResults}
+            {groupResults}
+            {highlight}
+            jewel={searchJewel}
+            conqueror={searchConqueror}
+            platform={platform.value}
+            league={league.value}
+            {isLegacyTradersMode} />
         {/if}
       </div>
     </div>

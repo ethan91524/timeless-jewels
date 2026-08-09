@@ -32,11 +32,13 @@
   }}>
   <div class="flex flex-row justify-between">
     <!-- Padding -->
-    <button class="px-3 invisible">Trade</button>
+    <button class="px-3 invisible">交易</button>
     <div class="font-bold text-orange-500 text-center">
-      Seed {set.seed} (weight {set.weight})
+      種子 {set.seed}（權重 {set.weight}）
     </div>
-    <button class="px-3 bg-blue-500/40 rounded" on:click={() => openTrade(jewel, conqueror, [set], platform, league, isLegacyTradersMode)}>Trade</button>
+    <button
+      class="px-3 bg-blue-500/40 rounded"
+      on:click={() => openTrade(jewel, conqueror, [set], platform, league, isLegacyTradersMode)}>交易</button>
   </div>
   {#each set.skills as skill}
     <div class="mt-2">

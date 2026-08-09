@@ -46,6 +46,22 @@ const platformRealms: { [key: string]: string } = {
   Playstation: 'sony'
 };
 
+/** 台服（garena）走自己的交易站網域，不是官方站的 realm。 */
+export const TW_PLATFORM = 'TW';
+export const isTaiwan = (platform: string): boolean => platform === TW_PLATFORM;
+
+/**
+ * 台服交易站的狀態選項（來自 /api/trade/data/filters 的 status_filters）：
+ *   available = 即刻購買以及面對面交易（預設，最實用）
+ *   securable = 即刻購買 / online = 面對面交易（在線） / any = 任何
+ */
+const tradeStatus = (platform: string, isLegacyTradersMode: boolean): string => {
+  if (isTaiwan(platform)) {
+    return 'available';
+  }
+  return isLegacyTradersMode ? 'online' : 'any';
+};
+
 const max_filter_length = 45;
 const max_filters = 4;
 
@@ -96,7 +112,8 @@ export const constructQuery = <T extends SeedRef>(
   jewel: number,
   conqueror: string | null,
   result: T[],
-  isLegacyTradersMode = false
+  isLegacyTradersMode = false,
+  platform = 'PC'
 ) => {
   const max_query_length = max_filter_length * max_filters;
 
@@ -183,7 +200,7 @@ export const constructQuery = <T extends SeedRef>(
 
   return {
     query: {
-      status: { option: isLegacyTradersMode ? 'online' : 'any' },
+      status: { option: tradeStatus(platform, isLegacyTradersMode) },
       stats: final_query
     },
     sort: { price: 'asc' }
@@ -201,10 +218,11 @@ export const constructQueries = <T extends SeedRef>(
   jewel: number,
   conqueror: string | null,
   results: T[],
-  isLegacyTradersMode = false
+  isLegacyTradersMode = false,
+  platform = 'PC'
 ): TradeQuery[] =>
   chunk(results, seedsPerQuery(jewel, conqueror)).map((batch) =>
-    constructQuery(jewel, conqueror, batch, isLegacyTradersMode)
+    constructQuery(jewel, conqueror, batch, isLegacyTradersMode, platform)
   );
 
 export const tradeUrl = (platform: string, league: string): string => {
@@ -214,6 +232,10 @@ export const tradeUrl = (platform: string, league: string): string => {
 
   if (!league || typeof league !== 'string') {
     league = 'Standard';
+  }
+
+  if (isTaiwan(platform)) {
+    return `https://pathofexile.tw/trade/search/${encodeURIComponent(league)}`;
   }
 
   const realm = platformRealms[platform] ?? platform.toLowerCase();
@@ -236,4 +258,16 @@ export const openTrade = <T extends SeedRef>(
   platform: string,
   league: string,
   isLegacyTradersMode = false
-) => openQuery(constructQuery(jewel, conqueror, results, isLegacyTradersMode), platform, league);
+) => openQuery(constructQuery(jewel, conqueror, results, isLegacyTradersMode, platform), platform, league);
+
+/** 台服聯盟清單：pathofexile.tw/api/trade/data/leagues（2026-08-09 快照，換季要更新）。 */
+export const TW_LEAGUES = [
+  '亡焰咒海',
+  '亡焰咒海（專家）',
+  '亡焰咒海. 殘暴',
+  '亡焰咒海. 殘暴（專家）',
+  '標準模式',
+  '專家模式',
+  '殘暴',
+  '殘暴（專家）'
+];

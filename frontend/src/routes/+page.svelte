@@ -73,10 +73,10 @@
 <div class="py-10 flex flex-row justify-center w-screen h-screen">
   <div class="flex flex-col justify-between w-1/3">
     <div>
-      <h1 class="text-white mb-10 text-center">Timeless Calculator</h1>
+      <h1 class="text-white mb-10 text-center">永恆珠寶計算器</h1>
 
       <a href="{base}/tree">
-        <h2 class="text-white mb-10 text-center underline text-orange-500">Skill Tree View</h2>
+        <h2 class="text-white mb-10 text-center underline text-orange-500">天賦樹搜尋</h2>
       </a>
 
       <div class="themed">

@@ -2,42 +2,330 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   介面基調
+   暗色底 + 流亡黯道的舊金色。設計語言沿用 VidScribe／What'Sub：
+   token 化配色、膠囊按鈕、雙層邊框（line / line-strong）、
+   0.12–0.18s 的短過渡，以及帶一點回彈的進場動畫。
+   天賦樹本身維持遊戲原色，這裡只處理面板與控制項。
+   ============================================================ */
+
+:root {
+  --bg: #0b0b0e;
+  --panel: #15151a;
+  --panel-2: #1d1d24;
+  --panel-3: #24242d;
+  --line: #2b2b34;
+  --line-strong: #414150;
+  --text: #e9e4d8;
+  --muted: #8d8779;
+
+  --gold: #c9a94a;
+  --gold-bright: #e3c86a;
+  --gold-dark: #8a7434;
+  --gold-soft: rgba(201, 169, 74, 0.14);
+  --gold-ink: #17130a;
+
+  --ok: #3fb950;
+  --ok-soft: rgba(63, 185, 80, 0.16);
+  --info: #4b93d1;
+  --info-soft: rgba(75, 147, 209, 0.16);
+  --danger: #d9534f;
+
+  --sans: 'Segoe UI Variable Text', 'Segoe UI', 'Microsoft JhengHei UI', 'Microsoft JhengHei',
+    'PingFang TC', system-ui, sans-serif;
+  --mono: 'Cascadia Mono', 'Cascadia Code', Consolas, ui-monospace, monospace;
+
+  --ease-pop: cubic-bezier(0.2, 1.4, 0.4, 1);
+  --ease-out: cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
 html,
 body {
-  @apply bg-neutral-900 text-white;
-  font-family: 'Roboto Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
 }
 
 h1 {
-  @apply text-3xl font-bold;
+  @apply text-3xl;
+  font-weight: 650;
+  letter-spacing: 0.01em;
 }
 
 h2 {
-  @apply text-2xl font-bold;
+  @apply text-xl;
+  font-weight: 650;
+  letter-spacing: 0.01em;
 }
 
 h3 {
-  @apply text-xl font-bold;
+  @apply text-base;
+  font-weight: 600;
+  color: var(--gold);
+  letter-spacing: 0.02em;
 }
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #33333d;
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #45454f;
+}
+
+/* ---- 面板 ---- */
 
 .themed {
-  --background: #393939;
-  --list-background: #393939;
-  --item-hover-bg: #c2410c;
-  --item-is-active-bg: #696969;
-  --border-focus-color: #c2410c;
-  --input-color: #ffffff;
-  --border: #696969;
+  --background: var(--panel-2);
+  --list-background: var(--panel-2);
+  --item-hover-bg: var(--gold-soft);
+  --item-is-active-bg: var(--gold-dark);
+  --border-focus-color: var(--gold);
+  --input-color: var(--text);
+  --border: var(--line);
+  --list-border-radius: 10px;
+  --item-color: var(--text);
+  --placeholder-color: var(--muted);
 }
+
+/* 左上角那塊設定面板：進場時輕輕滑入 */
+.themed.rounded-br-lg {
+  background: rgba(13, 13, 17, 0.92) !important;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  animation: panelIn 0.24s var(--ease-out) both;
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translate3d(-10px, -6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ---- 輸入 ---- */
 
 input {
-  background: #393939;
-  height: 42px;
-  padding: 16px;
+  background: var(--panel);
+  height: 40px;
+  padding: 0 14px;
   width: 100%;
-  border-radius: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
 }
 
+input:hover {
+  border-color: var(--line-strong);
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px var(--gold-soft);
+}
+
+input[type='number'] {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 按鈕：統一膠囊造型，顏色沿用原本的語意 ---- */
+
+button {
+  font-family: inherit;
+  transition: background 0.14s, border-color 0.14s, color 0.14s, transform 0.12s,
+    box-shadow 0.14s, filter 0.14s;
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.bg-blue-500\/40,
+.bg-neutral-100\/20,
+.bg-neutral-500\/20,
+.bg-yellow-500\/40,
+.bg-emerald-600\/50,
+.bg-amber-600\/50,
+.bg-green-500\/40 {
+  border-radius: 999px !important;
+  border: 1px solid var(--line);
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.bg-blue-500\/40,
+.bg-neutral-100\/20,
+.bg-neutral-500\/20 {
+  background: var(--panel-2) !important;
+  color: var(--text);
+}
+
+.bg-blue-500\/40:hover:not(:disabled),
+.bg-neutral-100\/20:hover:not(:disabled),
+.bg-neutral-500\/20:hover:not(:disabled) {
+  background: var(--panel-3) !important;
+  border-color: var(--line-strong);
+}
+
+/* 節點選取那排：金色描邊 */
+.bg-yellow-500\/40 {
+  background: transparent !important;
+  border-color: var(--gold-dark);
+  color: var(--gold);
+}
+.bg-yellow-500\/40:hover:not(:disabled) {
+  background: var(--gold-soft) !important;
+  border-color: var(--gold);
+}
+
+/* 主要動作：開始搜尋 */
+.bg-green-500\/40 {
+  background: var(--gold) !important;
+  border-color: var(--gold);
+  color: var(--gold-ink) !important;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.bg-green-500\/40:hover:not(:disabled) {
+  filter: brightness(1.08);
+  box-shadow: 0 4px 16px rgba(201, 169, 74, 0.25);
+}
+
+/* 號碼清單 */
+.bg-emerald-600\/50 {
+  background: var(--ok-soft) !important;
+  border-color: rgba(63, 185, 80, 0.45);
+  color: #8fe0a0;
+}
+.bg-emerald-600\/50:hover:not(:disabled) {
+  background: rgba(63, 185, 80, 0.26) !important;
+}
+
+/* 交易搜尋器 */
+.bg-amber-600\/50 {
+  background: var(--gold-soft) !important;
+  border-color: var(--gold-dark);
+  color: var(--gold-bright);
+}
+.bg-amber-600\/50:hover:not(:disabled) {
+  background: rgba(201, 169, 74, 0.26) !important;
+}
+
+/* 分段控制：直接輸入種子 / 依詞綴搜尋 */
+.selection-button {
+  border: 1px solid var(--line) !important;
+  background: var(--panel) !important;
+  color: var(--muted) !important;
+  transition: background 0.14s, color 0.14s, border-color 0.14s;
+}
+.selection-button:first-child {
+  border-radius: 999px 0 0 999px !important;
+}
+.selection-button:last-child {
+  border-radius: 0 999px 999px 0 !important;
+}
+.selection-button:hover:not(:disabled) {
+  color: var(--text) !important;
+  border-color: var(--line-strong) !important;
+}
+.selection-button.selected {
+  background: var(--gold-soft) !important;
+  border-color: var(--gold-dark) !important;
+  color: var(--gold-bright) !important;
+}
+
+/* 搜尋結果卡片 */
+.border-white\/50 {
+  border-color: var(--line) !important;
+  border-radius: 10px;
+  background: var(--panel);
+  animation: popIn 0.18s var(--ease-pop) both;
+  transition: border-color 0.14s, background 0.14s, transform 0.14s;
+}
+.border-white\/50:hover {
+  border-color: var(--gold-dark) !important;
+  background: var(--panel-2);
+}
+
+/* 結果分組標題 */
+.bg-neutral-500\/30 {
+  background: var(--panel-2) !important;
+  border: 1px solid var(--line);
+  border-radius: 10px !important;
+  transition: background 0.14s, border-color 0.14s;
+}
+.bg-neutral-500\/30:hover {
+  background: var(--panel-3) !important;
+  border-color: var(--line-strong);
+}
+
+/* 種子數字用等寬，數字對齊才好讀 */
+.text-orange-500 {
+  color: var(--gold-bright) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.burger-menu {
+  border: none !important;
+  background: transparent !important;
+}
 .burger-menu > div {
-  @apply w-5 h-0.5 bg-white my-1;
+  @apply w-5 h-0.5 my-1;
+  background: var(--text);
+  border-radius: 2px;
+  transition: background 0.14s;
+}
+.burger-menu:hover > div {
+  background: var(--gold);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -13,9 +13,11 @@
     inverseTranslations,
     orbitAngleAt,
     skillTree,
-    toCanvasCoords
+    toCanvasCoords,
+    translateStat
   } from '../skill_tree';
   import type { Point } from '../skill_tree';
+  import { statZh } from '../tree_zh';
   import { derived } from 'svelte/store';
   import { calculator, data } from '../types';
 
@@ -24,6 +26,8 @@
 
   export let selectedJewel: number;
   export let selectedConqueror: string;
+  // 「不限人名」模式：鑰石會因人名而異，不能拿代算的結果顯示
+  export let anyConqueror = false;
   export let seed: number;
   export let highlighted: number[] = [];
   export let disabled: number[] = [];
@@ -334,7 +338,7 @@
         special: false
       }));
 
-      if (!hoveredNode.isJewelSocket && hoveredNodeActive) {
+      if (!hoveredNode.isJewelSocket && hoveredNodeActive && !(anyConqueror && hoveredNode.isKeystone)) {
         if (hoveredNode.skill && seed && selectedJewel && selectedConqueror) {
           const result = calculator.Calculate(
             data.TreeToPassive[hoveredNode.skill].Index,
@@ -350,14 +354,10 @@
 
               if ('StatsKeys' in result.AlternatePassiveSkill) {
                 result.AlternatePassiveSkill.StatsKeys.forEach((statId, i) => {
-                  const stat = data.GetStatByIndex(statId);
-                  const translation = inverseTranslations[stat.ID] || '';
-                  if (translation) {
-                    nodeStats.push({
-                      text: formatStats(translation, result.StatRolls[i]) || stat.ID,
-                      special: true
-                    });
-                  }
+                  nodeStats.push({
+                    text: jewelStatText(statId, result.StatRolls[i]),
+                    special: true
+                  });
                 });
               }
             }
@@ -366,14 +366,10 @@
               result.AlternatePassiveAdditionInformations.forEach((info) => {
                 if ('StatsKeys' in info.AlternatePassiveAddition) {
                   info.AlternatePassiveAddition.StatsKeys.forEach((statId, i) => {
-                    const stat = data.GetStatByIndex(statId);
-                    const translation = inverseTranslations[stat.ID] || '';
-                    if (translation) {
-                      nodeStats.push({
-                        text: formatStats(translation, info.StatRolls[i]) || stat.ID,
-                        special: true
-                      });
-                    }
+                    nodeStats.push({
+                      text: jewelStatText(statId, info.StatRolls[i]),
+                      special: true
+                    });
                   });
                 }
               });
@@ -471,6 +467,24 @@
 
     context.fillText(`${(end - start).toFixed(1)}ms`, width - 5, 17);
   }) as RenderFunc;
+
+  /**
+   * 珠寶轉換後的詞綴文字。
+   *
+   * 原本是 formatStats(...) || stat.ID —— 套版失敗就直接把 stat id 印在畫面上
+   * （例如 chance_to_intimidate_on_hit_%），而且查不到 translation 時整條會被丟掉，
+   * 看起來就像「珠寶沒有生效、只剩天賦原本的效果」。
+   */
+  const jewelStatText = (statId: number, roll: number): string => {
+    const stat = data.GetStatByIndex(statId);
+    const translation = inverseTranslations[stat.ID] || '';
+    let text = translation ? formatStats(translation, roll) : '';
+    if (!text) {
+      const template = translateStat(statId);
+      text = template && template !== stat.ID ? template.replace('#', String(roll)) : stat.Text || stat.ID;
+    }
+    return statZh(text);
+  };
 
   let downX = 0;
   let downY = 0;

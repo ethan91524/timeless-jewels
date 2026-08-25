@@ -66,21 +66,28 @@
     ? getAffectedNodes(skillTree.nodes[circledNode]).filter((n) => !n.isJewelSocket && !n.isMastery)
     : [];
 
+  // 只有鑰石會因人名而不同，其餘天賦不管哪個人名結果都一樣。
+  // 所以「不限人名」時就拿第一個人名代算，並把鑰石濾掉。
+  $: effectiveConqueror = isAnyConqueror
+    ? conquerors[0]?.value
+    : selectedConqueror &&
+        Object.keys(data.TimelessJewelConquerors[selectedJewel?.value ?? 0] ?? {}).indexOf(selectedConqueror.value) >= 0
+      ? selectedConqueror.value
+      : undefined;
+
   $: seedResults =
-    !seed ||
-    !selectedJewel ||
-    !selectedConqueror ||
-    Object.keys(data.TimelessJewelConquerors[selectedJewel.value]).indexOf(selectedConqueror.value) < 0
+    !seed || !selectedJewel || !effectiveConqueror
       ? []
       : affectedNodes
           .filter((n) => !!data.TreeToPassive[n.skill])
+          .filter((n) => !isAnyConqueror || !n.isKeystone)
           .map((n) => ({
             node: n.skill,
             result: calculator.Calculate(
               data.TreeToPassive[n.skill].Index,
               seed,
               selectedJewel.value,
-              selectedConqueror.value
+              effectiveConqueror
             )
           }));
 
@@ -97,12 +104,6 @@
   }
 
   let mode = searchParams.has('mode') ? searchParams.get('mode') : '';
-
-  // "Any" has no meaning for a single-seed preview: that view renders the
-  // keystone, which is exactly the part the conqueror decides.
-  $: if (isAnyConqueror && mode === 'seed') {
-    mode = 'stats';
-  }
 
   let disabled = new Set<number>();
 
@@ -610,7 +611,8 @@
   {clickNode}
   {circledNode}
   selectedJewel={selectedJewel?.value}
-  selectedConqueror={isAnyConqueror ? undefined : selectedConqueror?.value}
+  selectedConqueror={effectiveConqueror}
+  anyConqueror={isAnyConqueror}
   {highlighted}
   {seed}
   highlightJewels={!circledNode}
@@ -706,8 +708,7 @@
                 <button
                   class="selection-button"
                   class:selected={mode === 'seed'}
-                  on:click={() => setMode('seed')}
-                  disabled={isAnyConqueror}>
+                  on:click={() => setMode('seed')}>
                   直接輸入種子
                 </button>
                 <button class="selection-button" class:selected={mode === 'stats'} on:click={() => setMode('stats')}>

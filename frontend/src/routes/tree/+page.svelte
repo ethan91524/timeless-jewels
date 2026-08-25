@@ -14,6 +14,7 @@
     isTaiwan,
     TW_LEAGUES,
     baseJewelRadius,
+    drawnNodes,
     calculateNodePos,
     distance,
     IMPOSSIBLE_ESCAPE_RADIUS,
@@ -131,6 +132,26 @@
     hopeSocket && hopeSize && url.searchParams.append('hopeSize', hopeSize.value.toString());
 
     goto(url.toString());
+  };
+
+  /**
+   * 只把額外範圍寫進網址列，不觸發 SvelteKit 導航。
+   *
+   * updateUrl 用的 goto() 會跑完整導航流程，而這個頁面在導航時本來就會拋一個
+   * 第三方套件的錯誤（Cannot read properties of undefined (reading 'group')），
+   * 錯誤會中斷後續的畫面更新——結果就是網址已經改了、畫面還停在原本的選擇。
+   * 這裡只需要讓網址可分享，用 replaceState 就夠，也順便避開那個雷。
+   */
+  const syncRangeUrl = () => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('escape');
+    url.searchParams.delete('hope');
+    url.searchParams.delete('hopeSize');
+    escapeKeystone && url.searchParams.set('escape', escapeKeystone.value.toString());
+    hopeSocket && url.searchParams.set('hope', hopeSocket.value.toString());
+    hopeSocket && hopeSize && url.searchParams.set('hopeSize', hopeSize.value.toString());
+    history.replaceState(history.state, '', url);
   };
 
   const setMode = (newMode: string) => {
@@ -472,7 +493,9 @@
 
   // ---- 額外範圍：逃脫不能（實心小範圍）、希望之弦（環狀，可選大小）
   // 兩者可同時顯示，遊戲裡常和軍團珠寶搭配使用。
-  const nodeList = Object.values(skillTree.nodes ?? {});
+  // 只列真的會畫在樹上的節點：skillTree.nodes 有 60 個插槽，但實際繪製的只有 21 個，
+  // 列出畫不出來的節點會讓使用者選到之後整個畫面更新卡死。
+  const nodeList = Object.values(drawnNodes ?? {});
 
   const keystoneItems = nodeList
     .filter((n) => n.isKeystone && n.name && !n.isProxy && !n.ascendancyName)
@@ -531,6 +554,32 @@
         label: `希望之弦 · ${hopeSize.label.split('（')[0]}`
       }
   ].filter(Boolean) as ExtraRing[];
+
+  // 右鍵直接在天賦樹上設定，比下拉找快得多；再右鍵同一個就取消
+  const rightClickNode = (node: Node) => {
+    if (node.isJewelSocket) {
+      if (hopeSocket?.value === node.skill) {
+        hopeSocket = undefined;
+      } else {
+        hopeSocket = socketItems.find((s) => s.value === node.skill) ?? {
+          value: node.skill,
+          label: `插槽 #${node.skill}`
+        };
+      }
+    } else if (node.isKeystone) {
+      if (escapeKeystone?.value === node.skill) {
+        escapeKeystone = undefined;
+      } else {
+        escapeKeystone = keystoneItems.find((k) => k.value === node.skill) ?? {
+          value: node.skill,
+          label: node.name ?? `鑰石 #${node.skill}`
+        };
+      }
+    } else {
+      return;
+    }
+    syncRangeUrl();
+  };
 
   let collapsed = false;
 
@@ -686,6 +735,7 @@
   selectedConqueror={effectiveConqueror}
   anyConqueror={isAnyConqueror}
   {extraRings}
+  {rightClickNode}
   {highlighted}
   {seed}
   highlightJewels={!circledNode}
@@ -976,41 +1026,71 @@
                   on:click={() => {
                     escapeKeystone = undefined;
                     hopeSocket = undefined;
+                    syncRangeUrl();
                   }}>清除</button>
               {/if}
             </div>
             <div class="flex flex-row flex-wrap gap-3">
               <div class="flex-1 min-w-[220px]">
                 <div class="text-sm mb-1" style="color:#f59e0b">逃脫不能 · 選鑰石（半徑 {IMPOSSIBLE_ESCAPE_RADIUS}）</div>
-                <Select
-                  floatingConfig={{ strategy: 'fixed' }}
-                  items={keystoneItems}
-                  bind:value={escapeKeystone}
-                  on:change={updateUrl}
-                  on:clear={updateUrl}
-                  placeholder="選一個鑰石" />
+                {#if escapeKeystone}
+                  <div class="range-chip" style="--chip:#f59e0b">
+                    <span>{escapeKeystone.label}</span>
+                    <button
+                      type="button"
+                      title="移除"
+                      on:click={() => {
+                        escapeKeystone = undefined;
+                        syncRangeUrl();
+                      }}>✕</button>
+                  </div>
+                {:else}
+                  <Select
+                    floatingConfig={{ strategy: 'fixed' }}
+                    items={keystoneItems}
+                    on:change={(e) => {
+                      escapeKeystone = e.detail ?? undefined;
+                      syncRangeUrl();
+                    }}
+                    placeholder="選一個鑰石" />
+                {/if}
               </div>
               <div class="flex-1 min-w-[220px]">
                 <div class="text-sm mb-1" style="color:#34d399">希望之弦 · 選插槽與大小</div>
-                <Select
-                  floatingConfig={{ strategy: 'fixed' }}
-                  items={socketItems}
-                  bind:value={hopeSocket}
-                  on:change={updateUrl}
-                  on:clear={updateUrl}
-                  placeholder="選一個珠寶插槽" />
+                {#if hopeSocket}
+                  <div class="range-chip" style="--chip:#34d399">
+                    <span>{hopeSocket.label}</span>
+                    <button
+                      type="button"
+                      title="移除"
+                      on:click={() => {
+                        hopeSocket = undefined;
+                        syncRangeUrl();
+                      }}>✕</button>
+                  </div>
+                {:else}
+                  <Select
+                    floatingConfig={{ strategy: 'fixed' }}
+                    items={socketItems}
+                    on:change={(e) => {
+                      hopeSocket = e.detail ?? undefined;
+                      syncRangeUrl();
+                    }}
+                    placeholder="選一個珠寶插槽" />
+                {/if}
                 <div class="mt-2">
                   <Select
                     floatingConfig={{ strategy: 'fixed' }}
                     items={ringSizeItems}
                     bind:value={hopeSize}
-                    on:change={updateUrl}
+                    on:change={syncRangeUrl}
                     clearable={false} />
                 </div>
               </div>
             </div>
             <div class="mt-2 text-sm text-neutral-400">
-              希望之弦是環狀範圍，只有兩圈之間的天賦算數；逃脫不能是以鑰石為中心的小範圍。
+              <b class="text-neutral-200">在天賦樹上按右鍵最快</b>：右鍵珠寶插槽設希望之弦、右鍵鑰石設逃脫不能，
+              再右鍵同一個就取消。希望之弦是環狀範圍，只有兩圈之間的天賦算數。
             </div>
           </div>
         {/if}

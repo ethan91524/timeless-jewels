@@ -329,3 +329,38 @@ button:disabled {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* 額外範圍選好之後用標籤顯示，右邊的 ✕ 可移除 */
+.range-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 7px 14px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--chip) 55%, transparent);
+  background: color-mix(in srgb, var(--chip) 14%, transparent);
+  color: var(--chip);
+  font-size: 13.5px;
+  animation: popIn 0.16s var(--ease-pop) both;
+}
+.range-chip span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.range-chip button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 6px;
+  font-size: 13px;
+  opacity: 0.75;
+  border-radius: 999px;
+}
+.range-chip button:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--chip) 26%, transparent);
+}

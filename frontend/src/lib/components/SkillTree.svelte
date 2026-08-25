@@ -30,6 +30,8 @@
   export let anyConqueror = false;
   // 額外要畫的範圍圈（逃脫不能、希望之弦），可與軍團珠寶範圍同時顯示
   export let extraRings: ExtraRing[] = [];
+  // 右鍵直接在天賦樹上設定額外範圍（插槽→希望之弦、鑰石→逃脫不能）
+  export let rightClickNode: (node: Node) => void = () => {};
   export let seed: number;
   export let highlighted: number[] = [];
   export let disabled: number[] = [];
@@ -243,8 +245,12 @@
     });
 
     let circledNodePos: Point;
-    if (circledNode) {
-      circledNodePos = calculateNodePos(drawnNodes[circledNode], offsetX, offsetY, scaling);
+    // 網址可能帶到不存在（或不會被繪製）的節點；沒防呆的話 calculateNodePos 會讀到
+    // undefined.group 而拋錯，而這個錯誤發生在 Svelte 的 flush 裡，
+    // 會把整批畫面更新一起中止——症狀是「網址變了但畫面完全不動」。
+    const circledNodeData = circledNode ? drawnNodes[circledNode] : undefined;
+    if (circledNodeData) {
+      circledNodePos = calculateNodePos(circledNodeData, offsetX, offsetY, scaling);
       context.strokeStyle = '#ad2b2b';
     }
 
@@ -256,7 +262,7 @@
       let touchDistance = 0;
 
       let active = false;
-      if (circledNode) {
+      if (circledNodeData) {
         if (distance(rotatedPos, circledNodePos) < jewelRadius) {
           active = true;
         }
@@ -325,7 +331,7 @@
 
     hoveredNode = newHoverNode;
 
-    if (circledNode) {
+    if (circledNodeData) {
       context.strokeStyle = '#ad2b2b';
       context.lineWidth = 1;
       context.beginPath();
@@ -584,6 +590,15 @@
     return best;
   };
 
+  const onContextMenu = (event: MouseEvent) => {
+    const target = nodeAt(toCanvas(event));
+    // 只有點在珠寶插槽或鑰石上才接管，其餘位置維持瀏覽器原本的右鍵選單
+    if (target && (target.isJewelSocket || target.isKeystone)) {
+      event.preventDefault();
+      rightClickNode(target);
+    }
+  };
+
   let down = false;
   const mouseDown = (event: PointerEvent) => {
     const pos = toCanvas(event);
@@ -708,7 +723,11 @@
   on:resize={resize} />
 
 {#if width && height}
-  <div bind:this={container} on:resize={resize} style="touch-action: none; cursor: {cursor}">
+  <div
+    bind:this={container}
+    on:resize={resize}
+    on:contextmenu={onContextMenu}
+    style="touch-action: none; cursor: {cursor}">
     <Canvas {width} {height} on:pointerdown={mouseDown} on:wheel={onScrollRaw}>
       <Layer {render} />
     </Canvas>

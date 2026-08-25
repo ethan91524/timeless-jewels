@@ -12,8 +12,14 @@
     openQuery,
     seedsPerQuery,
     isTaiwan,
-    TW_LEAGUES
+    TW_LEAGUES,
+    baseJewelRadius,
+    calculateNodePos,
+    distance,
+    IMPOSSIBLE_ESCAPE_RADIUS,
+    THREAD_OF_HOPE_SIZES
   } from '../../lib/skill_tree';
+  import type { ExtraRing } from '../../lib/skill_tree';
   import { syncWrap } from '../../lib/worker';
   import { proxy } from 'comlink';
   import type { ReverseSearchConfig, StatConfig, TradeQuery } from '../../lib/skill_tree';
@@ -119,6 +125,10 @@
     Object.keys(selectedStats).forEach((s) => {
       url.searchParams.append('stat', s.toString());
     });
+
+    escapeKeystone && url.searchParams.append('escape', escapeKeystone.value.toString());
+    hopeSocket && url.searchParams.append('hope', hopeSocket.value.toString());
+    hopeSocket && hopeSize && url.searchParams.append('hopeSize', hopeSize.value.toString());
 
     goto(url.toString());
   };
@@ -460,6 +470,68 @@
     updateUrl();
   };
 
+  // ---- 額外範圍：逃脫不能（實心小範圍）、希望之弦（環狀，可選大小）
+  // 兩者可同時顯示，遊戲裡常和軍團珠寶搭配使用。
+  const nodeList = Object.values(skillTree.nodes ?? {});
+
+  const keystoneItems = nodeList
+    .filter((n) => n.isKeystone && n.name && !n.isProxy && !n.ascendancyName)
+    .map((n) => ({ value: n.skill, label: n.name }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'zh-Hant'));
+
+  // 插槽本身沒有名字，用範圍內最近的核心天賦當標示，玩家才認得出是哪一個
+  const socketItems = nodeList
+    .filter((n) => n.isJewelSocket && n.skill !== undefined && !n.isProxy && !n.ascendancyName)
+    .map((socket) => {
+      let nearest = '';
+      let best = Infinity;
+      const sp = { x: socket.x ?? 0, y: socket.y ?? 0 };
+      nodeList.forEach((n) => {
+        if (!n.isNotable || !n.name) return;
+        const d = distance(sp, { x: n.x ?? 0, y: n.y ?? 0 });
+        if (d < best) {
+          best = d;
+          nearest = n.name;
+        }
+      });
+      return { value: socket.skill, label: nearest ? `插槽 · 近「${nearest}」` : `插槽 #${socket.skill}` };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label, 'zh-Hant'));
+
+  const ringSizeItems = THREAD_OF_HOPE_SIZES.map((r) => ({
+    value: r.value,
+    label: `${r.label}（${r.inner}–${r.outer}）`
+  }));
+
+  // 這幾項也放進網址，方便把「軍團珠寶 + 逃脫不能 + 希望之弦」的搭配整組分享出去
+  let escapeKeystone = searchParams.has('escape')
+    ? keystoneItems.find((k) => k.value === parseInt(searchParams.get('escape')))
+    : undefined;
+  let hopeSocket = searchParams.has('hope')
+    ? socketItems.find((k) => k.value === parseInt(searchParams.get('hope')))
+    : undefined;
+  let hopeSize = searchParams.has('hopeSize')
+    ? ringSizeItems.find((r) => r.value === parseInt(searchParams.get('hopeSize'))) ?? ringSizeItems[1]
+    : ringSizeItems[1];
+
+  $: extraRings = [
+    escapeKeystone && {
+      node: escapeKeystone.value,
+      inner: 0,
+      outer: IMPOSSIBLE_ESCAPE_RADIUS,
+      color: '#f59e0b',
+      label: `逃脫不能 · ${escapeKeystone.label}`
+    },
+    hopeSocket &&
+      hopeSize && {
+        node: hopeSocket.value,
+        inner: THREAD_OF_HOPE_SIZES.find((r) => r.value === hopeSize.value)?.inner ?? 0,
+        outer: THREAD_OF_HOPE_SIZES.find((r) => r.value === hopeSize.value)?.outer ?? 0,
+        color: '#34d399',
+        label: `希望之弦 · ${hopeSize.label.split('（')[0]}`
+      }
+  ].filter(Boolean) as ExtraRing[];
+
   let collapsed = false;
 
   const platforms = [
@@ -613,6 +685,7 @@
   selectedJewel={selectedJewel?.value}
   selectedConqueror={effectiveConqueror}
   anyConqueror={isAnyConqueror}
+  {extraRings}
   {highlighted}
   {seed}
   highlightJewels={!circledNode}
@@ -892,6 +965,54 @@
               {/if}
             {/if}
           {/if}
+
+          <!-- 逃脫不能／希望之弦：與軍團珠寶範圍同時顯示 -->
+          <div class="mt-4 border-t border-white/20 pt-3">
+            <div class="flex flex-row flex-wrap gap-2 items-center mb-2">
+              <h3 class="flex-grow">額外範圍（可同時顯示）</h3>
+              {#if extraRings.length}
+                <button
+                  class="p-1 px-3 bg-neutral-100/20 rounded text-sm"
+                  on:click={() => {
+                    escapeKeystone = undefined;
+                    hopeSocket = undefined;
+                  }}>清除</button>
+              {/if}
+            </div>
+            <div class="flex flex-row flex-wrap gap-3">
+              <div class="flex-1 min-w-[220px]">
+                <div class="text-sm mb-1" style="color:#f59e0b">逃脫不能 · 選鑰石（半徑 {IMPOSSIBLE_ESCAPE_RADIUS}）</div>
+                <Select
+                  floatingConfig={{ strategy: 'fixed' }}
+                  items={keystoneItems}
+                  bind:value={escapeKeystone}
+                  on:change={updateUrl}
+                  on:clear={updateUrl}
+                  placeholder="選一個鑰石" />
+              </div>
+              <div class="flex-1 min-w-[220px]">
+                <div class="text-sm mb-1" style="color:#34d399">希望之弦 · 選插槽與大小</div>
+                <Select
+                  floatingConfig={{ strategy: 'fixed' }}
+                  items={socketItems}
+                  bind:value={hopeSocket}
+                  on:change={updateUrl}
+                  on:clear={updateUrl}
+                  placeholder="選一個珠寶插槽" />
+                <div class="mt-2">
+                  <Select
+                    floatingConfig={{ strategy: 'fixed' }}
+                    items={ringSizeItems}
+                    bind:value={hopeSize}
+                    on:change={updateUrl}
+                    clearable={false} />
+                </div>
+              </div>
+            </div>
+            <div class="mt-2 text-sm text-neutral-400">
+              希望之弦是環狀範圍，只有兩圈之間的天賦算數；逃脫不能是以鑰石為中心的小範圍。
+            </div>
+          </div>
         {/if}
 
         {#if searchResults && results}

@@ -16,7 +16,7 @@
     toCanvasCoords,
     translateStat
   } from '../skill_tree';
-  import type { Point } from '../skill_tree';
+  import type { ExtraRing, Point } from '../skill_tree';
   import { statZh } from '../tree_zh';
   import { derived } from 'svelte/store';
   import { calculator, data } from '../types';
@@ -28,6 +28,8 @@
   export let selectedConqueror: string;
   // 「不限人名」模式：鑰石會因人名而異，不能拿代算的結果顯示
   export let anyConqueror = false;
+  // 額外要畫的範圍圈（逃脫不能、希望之弦），可與軍團珠寶範圍同時顯示
+  export let extraRings: ExtraRing[] = [];
   export let seed: number;
   export let highlighted: number[] = [];
   export let disabled: number[] = [];
@@ -330,6 +332,43 @@
       context.arc(circledNodePos.x, circledNodePos.y, jewelRadius, 0, Math.PI * 2);
       context.stroke();
     }
+
+    // 逃脫不能／希望之弦：內外圈都畫，中間淡淡填色標出實際生效的區域
+    extraRings.forEach((ring) => {
+      const ringNode = drawnNodes[ring.node];
+      if (!ringNode) {
+        return;
+      }
+      const pos = calculateNodePos(ringNode, offsetX, offsetY, scaling);
+      const outer = ring.outer / scaling;
+      const inner = ring.inner / scaling;
+
+      context.beginPath();
+      context.arc(pos.x, pos.y, outer, 0, Math.PI * 2);
+      if (inner > 0) {
+        context.arc(pos.x, pos.y, inner, 0, Math.PI * 2, true);
+      }
+      context.fillStyle = ring.color + '22';
+      context.fill('evenodd');
+
+      context.strokeStyle = ring.color;
+      context.lineWidth = 2;
+      context.beginPath();
+      context.arc(pos.x, pos.y, outer, 0, Math.PI * 2);
+      context.stroke();
+      if (inner > 0) {
+        context.beginPath();
+        context.arc(pos.x, pos.y, inner, 0, Math.PI * 2);
+        context.stroke();
+      }
+
+      context.fillStyle = ring.color;
+      context.font = titleFont;
+      context.textAlign = 'center';
+      context.fillText(ring.label, pos.x, pos.y - outer - 14 / scaling);
+      context.textAlign = 'left';
+      context.lineWidth = 1;
+    });
 
     if (hoveredNode) {
       let nodeName = hoveredNode.name;

@@ -284,6 +284,39 @@ export const formatStats = (translation: Translation, stat: number): string | un
 
 export const baseJewelRadius = 1800;
 
+/**
+ * 獨特珠寶的作用範圍。
+ *
+ * 數值取自 Path of Building 的 data.jewelRadii["3_16"]；交叉驗證：該表的
+ * Large = 1800，正好等於上面軍團珠寶用的 baseJewelRadius，代表同一套座標系。
+ * 「逃脫不能」是小範圍（960）；「希望之弦」是環狀，四種大小各有內外半徑。
+ */
+export const IMPOSSIBLE_ESCAPE_RADIUS = 960;
+
+export interface RingSize {
+  value: number;
+  label: string;
+  inner: number;
+  outer: number;
+}
+
+export const THREAD_OF_HOPE_SIZES: RingSize[] = [
+  { value: 1, label: '小範圍', inner: 960, outer: 1320 },
+  { value: 2, label: '中範圍', inner: 1320, outer: 1680 },
+  { value: 3, label: '大範圍', inner: 1680, outer: 2040 },
+  { value: 4, label: '超大範圍', inner: 2040, outer: 2400 },
+  { value: 5, label: '巨大範圍', inner: 2400, outer: 2880 }
+];
+
+/** 畫在天賦樹上的額外範圍圈 */
+export interface ExtraRing {
+  node: number;
+  inner: number;
+  outer: number;
+  color: string;
+  label: string;
+}
+
 export const getAffectedNodes = (socket: Node): Node[] => {
   const result: Node[] = [];
 

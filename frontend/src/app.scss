@@ -364,3 +364,167 @@ button:disabled {
   opacity: 1;
   background: color-mix(in srgb, var(--chip) 26%, transparent);
 }
+
+/* ---- 載入畫面 ---- */
+
+.boot-screen {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 42%, #16140d 0%, var(--bg) 62%);
+}
+
+.boot-inner {
+  text-align: center;
+  animation: bootIn 0.5s var(--ease-out) both;
+}
+
+.boot-title {
+  font-size: clamp(1.7rem, 5.5vw, 2.6rem);
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  margin: 0;
+  color: var(--gold-bright);
+  text-shadow: 0 0 28px rgba(201, 169, 74, 0.28);
+}
+
+.boot-by {
+  margin-top: 10px;
+  font-size: 0.82rem;
+  letter-spacing: 0.22em;
+  color: var(--muted);
+}
+
+/* 不確定要載多久，用來回掃描而不是假的百分比進度 */
+.boot-bar {
+  margin: 26px auto 0;
+  width: min(240px, 56vw);
+  height: 2px;
+  background: var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.boot-bar span {
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  animation: bootSweep 1.15s ease-in-out infinite;
+}
+
+@keyframes bootIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes bootSweep {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(360%);
+  }
+}
+
+/* ---- 首頁 ---- */
+
+.home-col {
+  width: min(680px, 92vw);
+}
+
+.home-by {
+  text-align: center;
+  font-size: 0.78rem;
+  letter-spacing: 0.22em;
+  color: var(--muted);
+}
+
+.home-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 22px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--entry) 42%, transparent);
+  background: color-mix(in srgb, var(--entry) 10%, transparent);
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+.home-entry:hover {
+  background: color-mix(in srgb, var(--entry) 20%, transparent);
+  border-color: var(--entry);
+  transform: translateY(-2px);
+}
+.home-entry b {
+  color: var(--entry);
+  font-size: 1.02rem;
+  font-weight: 650;
+}
+.home-entry span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.guide {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  padding: 16px 18px;
+  margin-bottom: 28px;
+}
+.guide-step {
+  display: flex;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+.guide-step:last-of-type {
+  border-bottom: none;
+}
+.guide-step i {
+  flex: 0 0 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--gold-soft);
+  color: var(--gold-bright);
+  font-style: normal;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.guide-step b {
+  display: block;
+  font-size: 0.94rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.guide-step p {
+  margin: 3px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.guide-note {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.guide-note code {
+  background: var(--panel-2);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--gold);
+}

@@ -301,11 +301,11 @@ export interface RingSize {
 }
 
 export const THREAD_OF_HOPE_SIZES: RingSize[] = [
-  { value: 1, label: '小範圍', inner: 960, outer: 1320 },
-  { value: 2, label: '中範圍', inner: 1320, outer: 1680 },
-  { value: 3, label: '大範圍', inner: 1680, outer: 2040 },
-  { value: 4, label: '超大範圍', inner: 2040, outer: 2400 },
-  { value: 5, label: '巨大範圍', inner: 2400, outer: 2880 }
+  { value: 1, label: '小', inner: 960, outer: 1320 },
+  { value: 2, label: '中', inner: 1320, outer: 1680 },
+  { value: 3, label: '大', inner: 1680, outer: 2040 },
+  { value: 4, label: '非常大', inner: 2040, outer: 2400 },
+  { value: 5, label: '極大', inner: 2400, outer: 2880 }
 ];
 
 /** 畫在天賦樹上的額外範圍圈 */

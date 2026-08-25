@@ -70,33 +70,70 @@
   };
 </script>
 
-<div class="py-10 flex flex-row justify-center w-screen h-screen">
-  <div class="flex flex-col justify-between w-1/3">
+<div class="py-10 flex flex-row justify-center w-screen min-h-screen overflow-y-auto">
+  <div class="flex flex-col justify-between home-col">
     <div>
-      <h1 class="text-white mb-10 text-center">永恆珠寶計算器</h1>
+      <h1 class="text-white mb-1 text-center">軍團珠寶高手工具</h1>
+      <div class="home-by">by ET</div>
 
-      <div class="flex flex-row justify-center gap-6 mb-10">
-        <a href="{base}/tree">
-          <h2 class="text-white text-center underline text-orange-500">天賦樹搜尋</h2>
+      <div class="flex flex-row flex-wrap justify-center gap-3 my-8">
+        <a class="home-entry" style="--entry:#e3c86a" href="{base}/tree">
+          <b>天賦樹搜尋</b>
+          <span>挑珠寶種子</span>
         </a>
-        <a href="{base}/jewel-search.html">
-          <h2 class="text-white text-center underline text-emerald-400">交易搜尋器</h2>
+        <a class="home-entry" style="--entry:#34d399" href="{base}/jewel-search.html">
+          <b>交易搜尋器</b>
+          <span>把種子變成交易連結</span>
         </a>
       </div>
 
+      <div class="guide">
+        <div class="guide-step">
+          <i>1</i>
+          <div>
+            <b>在天賦樹上點一個珠寶插槽</b>
+            <p>選好插槽後，上方挑珠寶與人名。不確定人名就選「不限人名」。</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <i>2</i>
+          <div>
+            <b>加入你要的詞綴，設權重</b>
+            <p>可以設每條詞綴的最低值與權重，再設一個最低總權重，然後按「開始搜尋」。</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <i>3</i>
+          <div>
+            <b>結果按「交易搜尋器」</b>
+            <p>會把所有符合的種子帶過去，自動分批並鎖住幾秒再開下一批，免得被交易站限速。</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <i>右</i>
+          <div>
+            <b>右鍵可以疊加範圍</b>
+            <p>右鍵珠寶插槽＝希望之弦（環狀，大小可調）、右鍵鑰石＝逃脫不能；再右鍵同一個就取消。</p>
+          </div>
+        </div>
+        <div class="guide-note">
+          交易連結要先在瀏覽器登入 <code>pathofexile.tw</code>，否則只會看到登入頁。
+        </div>
+      </div>
+
       <div class="themed">
-        <h3 class="mb-2">Timeless Jewel</h3>
+        <h3 class="mb-2">單顆種子查詢</h3>
         <Select items={jewels} bind:value={selectedJewel} on:select={updateUrl} />
 
         {#if selectedJewel}
           <div class="mt-4">
-            <h3 class="mb-2">Conqueror</h3>
+            <h3 class="mb-2">人名（征服者）</h3>
             <Select items={conquerors} bind:value={selectedConqueror} on:select={updateUrl} />
           </div>
 
           {#if selectedConqueror && Object.keys(data.TimelessJewelConquerors[selectedJewel.value]).indexOf(selectedConqueror.value) >= 0}
             <div class="mt-4">
-              <h3 class="mb-2">Passive Skill</h3>
+              <h3 class="mb-2">天賦</h3>
               <Select items={passiveSkills} bind:value={selectedPassiveSkill} on:select={updateUrl} />
             </div>
 

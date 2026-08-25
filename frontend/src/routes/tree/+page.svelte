@@ -502,16 +502,21 @@
     .map((n) => ({ value: n.skill, label: n.name }))
     .sort((a, b) => a.label.localeCompare(b.label, 'zh-Hant'));
 
-  // 插槽本身沒有名字，用範圍內最近的核心天賦當標示，玩家才認得出是哪一個
+  // 插槽本身沒有名字，用最近的核心天賦當標示，玩家才認得出是哪一個。
+  // 注意節點沒有 x / y 屬性，位置要由 group 中心 + 軌道半徑 + 角度算出來，
+  // 直接讀 node.x 會全部拿到 undefined、每個插槽都對到同一個天賦。
+  const worldPos = (n: Node) => calculateNodePos(n, 0, 0, 1);
+
+  const notableNodes = nodeList.filter((n) => n.isNotable && n.name && n.group !== undefined);
+
   const socketItems = nodeList
-    .filter((n) => n.isJewelSocket && n.skill !== undefined && !n.isProxy && !n.ascendancyName)
+    .filter((n) => n.isJewelSocket && n.skill !== undefined && n.group !== undefined)
     .map((socket) => {
+      const sp = worldPos(socket);
       let nearest = '';
       let best = Infinity;
-      const sp = { x: socket.x ?? 0, y: socket.y ?? 0 };
-      nodeList.forEach((n) => {
-        if (!n.isNotable || !n.name) return;
-        const d = distance(sp, { x: n.x ?? 0, y: n.y ?? 0 });
+      notableNodes.forEach((n) => {
+        const d = distance(sp, worldPos(n));
         if (d < best) {
           best = d;
           nearest = n.name;

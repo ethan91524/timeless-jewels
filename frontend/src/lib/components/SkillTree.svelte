@@ -354,7 +354,7 @@
       if (inner > 0) {
         context.arc(pos.x, pos.y, inner, 0, Math.PI * 2, true);
       }
-      context.fillStyle = ring.color + '22';
+      context.fillStyle = ring.color + '12';
       context.fill('evenodd');
 
       context.strokeStyle = ring.color;

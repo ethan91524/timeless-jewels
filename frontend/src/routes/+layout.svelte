@@ -29,15 +29,11 @@
 </script>
 
 {#if wasmLoading}
-  <div class="flex flex-row justify-center h-screen">
-    <div class="flex flex-col">
-      <div class="py-10 flex flex-col justify-between">
-        <div>
-          <h1 class="text-white mb-10 text-center">Timeless Calculator</h1>
-
-          <h2 class="text-center">Loading...</h2>
-        </div>
-      </div>
+  <div class="boot-screen">
+    <div class="boot-inner">
+      <h1 class="boot-title">軍團珠寶高手工具</h1>
+      <div class="boot-by">by ET</div>
+      <div class="boot-bar"><span /></div>
     </div>
   </div>
 {:else}

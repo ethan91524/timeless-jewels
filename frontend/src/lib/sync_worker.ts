@@ -1,7 +1,7 @@
 import { expose } from 'comlink';
 import '../wasm_exec.js';
-import { loadSkillTree, passiveToTree } from './skill_tree';
-import type { SearchWithSeed, ReverseSearchConfig, SearchResults } from './skill_tree';
+import { evaluateScopes, loadSkillTree, passiveToTree } from './skill_tree';
+import type { SearchWithSeed, ReverseSearchConfig, SearchResults, SearchScope } from './skill_tree';
 import { calculator, initializeCrystalline } from './types';
 
 const obj = {
@@ -26,60 +26,64 @@ const obj = {
       callback
     );
 
+    const statWeights: Record<number, number> = {};
+    args.stats.forEach((s) => (statWeights[s.id] = s.weight || 0));
+    const weightOf = (statId: number) => statWeights[statId] || 0;
+
+    // 沒帶 scopes 的呼叫端（或還沒設額外範圍）＝只有「珠寶範圍」一層，行為與改版前相同。
+    const scopes: SearchScope[] = args.scopes?.length
+      ? args.scopes
+      : [
+          {
+            key: 'all',
+            label: '珠寶範圍',
+            color: '#60a5fa',
+            mins: Object.fromEntries(args.stats.map((s) => [s.id, s.min || 0])),
+            minTotalWeight: args.minTotalWeight
+          }
+        ];
+
+    const primary = scopes[0].key;
+    const sortKey = args.sortScope && scopes.some((s) => s.key === args.sortScope) ? args.sortScope : primary;
+    const byScopeWeight = (a: SearchWithSeed, b: SearchWithSeed) =>
+      (b.scopeWeights?.[sortKey] ?? b.weight) - (a.scopeWeights?.[sortKey] ?? a.weight);
+
     const searchGrouped: { [key: number]: SearchWithSeed[] } = {};
     Object.keys(searchResult).forEach((seedStr) => {
       const seed = parseInt(seedStr);
 
-      let weight = 0;
-
-      const statCounts: Record<number, number> = {};
       const skills = Object.keys(searchResult[seed]).map((skillIDStr) => {
         const skillID = parseInt(skillIDStr);
-        Object.keys(searchResult[seed][skillID]).forEach((st) => {
-          const n = parseInt(st);
-          statCounts[n] = (statCounts[n] || 0) + 1;
-          weight += args.stats.find((s) => s.id == n)?.weight || 0;
-        });
-
         return {
           passive: passiveToTree[skillID],
           stats: searchResult[seed][skillID]
         };
       });
 
-      const len = Object.keys(searchResult[seed]).length;
+      const tally = evaluateScopes(skills, scopes, weightOf);
+      if (!tally.passed) {
+        return;
+      }
+
+      // 分組維持用第一層（珠寶範圍）命中的天賦數，跟改版前的「符合 N 項」一致。
+      const len = tally.skillCounts[primary];
       searchGrouped[len] = [
         ...(searchGrouped[len] || []),
         {
-          skills: skills,
+          skills,
           seed,
-          weight,
-          statCounts
+          weight: tally.weights[primary],
+          statCounts: tally.counts[primary],
+          scopeWeights: tally.weights,
+          scopeCounts: tally.counts,
+          scopeSkillCounts: tally.skillCounts
         }
       ];
     });
 
     Object.keys(searchGrouped).forEach((len) => {
       const nLen = parseInt(len);
-      searchGrouped[nLen] = searchGrouped[nLen].filter((g) => {
-        if (g.weight < args.minTotalWeight) {
-          return false;
-        }
-
-        for (const stat of args.stats) {
-          if ((g.statCounts[stat.id] === undefined && stat.min > 0) || g.statCounts[stat.id] < stat.min) {
-            return false;
-          }
-        }
-
-        return true;
-      });
-
-      if (Object.keys(searchGrouped[nLen]).length == 0) {
-        delete searchGrouped[nLen];
-      } else {
-        searchGrouped[nLen] = searchGrouped[nLen].sort((a, b) => b.weight - a.weight);
-      }
+      searchGrouped[nLen] = searchGrouped[nLen].sort(byScopeWeight);
     });
 
     return {
@@ -87,7 +91,7 @@ const obj = {
       raw: Object.keys(searchGrouped)
         .map((x) => searchGrouped[parseInt(x)])
         .flat()
-        .sort((a, b) => b.weight - a.weight)
+        .sort(byScopeWeight)
     };
   }
 } as const;

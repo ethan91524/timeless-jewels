@@ -10,6 +10,8 @@
   export let platform: string;
   export let league: string;
   export let isLegacyTradersMode = false;
+  /** 搜尋當下的範圍層；只有一層（珠寶範圍）時不顯示標籤 */
+  export let scopes: { key: string; label: string; short: string; color: string }[] = [];
 </script>
 
 <div
@@ -40,6 +42,18 @@
       class="px-3 bg-blue-500/40 rounded"
       on:click={() => openTrade(jewel, conqueror, [set], platform, league, isLegacyTradersMode)}>交易</button>
   </div>
+  {#if scopes.length > 1}
+    <div class="flex flex-row flex-wrap gap-2 justify-center mt-1">
+      {#each scopes as sc}
+        <span
+          class="scope-tag"
+          style="--c:{sc.color}"
+          title="{sc.label}內命中 {set.scopeSkillCounts?.[sc.key] ?? 0} 個天賦，加權 {set.scopeWeights?.[sc.key] ?? 0}">
+          {sc.short} {set.scopeSkillCounts?.[sc.key] ?? 0}
+        </span>
+      {/each}
+    </div>
+  {/if}
   {#each set.skills as skill}
     <div class="mt-2">
       <span>
@@ -53,3 +67,11 @@
     </div>
   {/each}
 </div>
+
+<style lang="postcss">
+  .scope-tag {
+    @apply text-xs rounded-full px-2 py-0.5 whitespace-nowrap;
+    border: 1px solid var(--c);
+    color: var(--c);
+  }
+</style>

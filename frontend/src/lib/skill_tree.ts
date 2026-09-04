@@ -332,6 +332,114 @@ export const getAffectedNodes = (socket: Node): Node[] => {
   return result;
 };
 
+/**
+ * 落在某個環狀範圍內的天賦（希望之弦是環狀、逃脫不能 inner = 0 就是實心圓）。
+ *
+ * candidates 一定要先傳「珠寶半徑內、而且沒被排除」的天賦：軍團珠寶只會改造自己
+ * 半徑內的天賦，環圈掃到珠寶範圍外的天賦沒有詞綴可比，算進去只會虛胖。
+ * 圓心本身不算（逃脫不能給的是半徑內的天賦，不含那顆鑰石）。
+ */
+export const nodesWithinRing = (
+  centerNode: number,
+  inner: number,
+  outer: number,
+  candidates: Node[]
+): number[] => {
+  const center = drawnNodes[centerNode];
+  if (!center) {
+    return [];
+  }
+
+  const centerPos = calculateNodePos(center, 0, 0, 1);
+  return candidates
+    .filter((n) => {
+      const d = distance(calculateNodePos(n, 0, 0, 1), centerPos);
+      return d > inner && d < outer;
+    })
+    .map((n) => n.skill);
+};
+
+/**
+ * 一個「範圍層」。分層篩選就是同時對好幾層各設一組門檻，例如
+ * 「珠寶範圍內至少 6 點生命，但希望之弦環內要有 3 點」。
+ *
+ * nodes 省略＝這一層就是整個珠寶範圍（所有被搜尋的天賦）。
+ * 其餘層的 nodes 由呼叫端先跟珠寶範圍、已排除的天賦取好交集。
+ */
+export interface SearchScope {
+  key: string;
+  label: string;
+  color: string;
+  /** 天賦樹節點 id；undefined = 珠寶範圍內全部 */
+  nodes?: number[];
+  /** statId -> 這層至少要有幾個天賦帶這條詞綴（0 或缺席＝不限） */
+  mins: Record<number, number>;
+  /** 這層的加權總分下限（0＝不限） */
+  minTotalWeight: number;
+}
+
+export interface ScopeTally {
+  /** scopeKey -> statId -> 這層有幾個天賦帶這條詞綴 */
+  counts: Record<string, Record<number, number>>;
+  /** scopeKey -> 這層的加權總分 */
+  weights: Record<string, number>;
+  /** scopeKey -> 這層命中幾個天賦 */
+  skillCounts: Record<string, number>;
+  /** 每一層的門檻都過了才算數 */
+  passed: boolean;
+}
+
+/**
+ * 把一顆種子的結果分層統計，並判斷是否全部門檻都過。
+ *
+ * 這裡刻意寫成純函式（不碰 WASM、不碰 DOM），分層規則才能單獨用測試釘住。
+ */
+export const evaluateScopes = (
+  skills: { passive: number; stats: Record<string | number, number> }[],
+  scopes: SearchScope[],
+  weightOf: (statId: number) => number
+): ScopeTally => {
+  const counts: Record<string, Record<number, number>> = {};
+  const weights: Record<string, number> = {};
+  const skillCounts: Record<string, number> = {};
+
+  const members = scopes.map((s) => (s.nodes ? new Set(s.nodes) : undefined));
+  scopes.forEach((s) => {
+    counts[s.key] = {};
+    weights[s.key] = 0;
+    skillCounts[s.key] = 0;
+  });
+
+  skills.forEach((skill) => {
+    const statIds = Object.keys(skill.stats).map((k) => parseInt(k));
+    scopes.forEach((scope, i) => {
+      const member = members[i];
+      if (member && !member.has(skill.passive)) {
+        return;
+      }
+
+      skillCounts[scope.key]++;
+      statIds.forEach((statId) => {
+        counts[scope.key][statId] = (counts[scope.key][statId] || 0) + 1;
+        weights[scope.key] += weightOf(statId);
+      });
+    });
+  });
+
+  const passed = scopes.every((scope) => {
+    if (weights[scope.key] < scope.minTotalWeight) {
+      return false;
+    }
+
+    return Object.keys(scope.mins).every((statId) => {
+      const min = scope.mins[statId];
+      return !min || (counts[scope.key][statId] || 0) >= min;
+    });
+  });
+
+  return { counts, weights, skillCounts, passed };
+};
+
 type Stat = { Index: number; ID: string; Text: string };
 
 const statCache: Record<number, Stat> = {};
@@ -344,9 +452,12 @@ export const getStat = (id: number | string): Stat => {
 };
 
 export interface StatConfig {
+  /** 珠寶範圍（第一層）的門檻，沿用原欄位名 */
   min: number;
   id: number;
   weight: number;
+  /** 其餘範圍層的門檻：scopeKey -> 至少幾點 */
+  scopeMins?: Record<string, number>;
 }
 
 export interface ReverseSearchConfig {
@@ -355,12 +466,20 @@ export interface ReverseSearchConfig {
   nodes: number[];
   stats: StatConfig[];
   minTotalWeight: number;
+  /** 分層篩選；沒帶就等於只有「珠寶範圍」一層（＝舊行為） */
+  scopes?: SearchScope[];
+  /** 結果要用哪一層的加權總分排序，預設第一層 */
+  sortScope?: string;
 }
 
 export interface SearchWithSeed {
   seed: number;
+  /** 第一層（珠寶範圍）的加權總分，維持舊欄位語意 */
   weight: number;
   statCounts: Record<number, number>;
+  scopeWeights?: Record<string, number>;
+  scopeCounts?: Record<string, Record<number, number>>;
+  scopeSkillCounts?: Record<string, number>;
   skills: {
     passive: number;
     stats: { [key: string]: number };

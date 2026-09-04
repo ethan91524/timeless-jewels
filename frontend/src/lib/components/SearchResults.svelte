@@ -12,9 +12,12 @@
   export let platform: string;
   export let league: string;
   export let isLegacyTradersMode = false;
+  /** 搜尋當下的範圍層，交給每筆結果標「哪一層命中幾個」 */
+  export let scopes: { key: string; label: string; short: string; color: string }[] = [];
 
-  const computeSize = (r: SearchWithSeed) =>
-    8 + 48 + r.skills.reduce((o, s) => o + 32 + Object.keys(s.stats).length * 24, 0);
+  // 多層時每筆結果多一列範圍標籤，虛擬清單的高度要跟著加，否則卡片會互相重疊
+  $: computeSize = (r: SearchWithSeed) =>
+    8 + 48 + (scopes.length > 1 ? 26 : 0) + r.skills.reduce((o, s) => o + 32 + Object.keys(s.stats).length * 24, 0);
 
   let expandedGroup: string | number = '';
 </script>
@@ -47,6 +50,7 @@
               <SearchResult
                 set={searchResults.grouped[k][index]}
                 {highlight}
+                {scopes}
                 {jewel}
                 {conqueror}
                 {platform}
@@ -69,6 +73,7 @@
         <SearchResult
           set={searchResults.raw[index]}
           {highlight}
+          {scopes}
           {jewel}
           {conqueror}
           {platform}

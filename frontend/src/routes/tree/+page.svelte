@@ -17,6 +17,7 @@
     drawnNodes,
     calculateNodePos,
     distance,
+    nodesWithinRing,
     IMPOSSIBLE_ESCAPE_RADIUS,
     THREAD_OF_HOPE_SIZES
   } from '../../lib/skill_tree';
@@ -105,7 +106,8 @@
       selectedStats[nStat] = {
         weight: 1,
         min: 0,
-        id: nStat
+        id: nStat,
+        scopeMins: {}
       };
     });
   }
@@ -199,7 +201,8 @@
     selectedStats[stat.detail.value] = {
       weight: 1,
       min: 0,
-      id: stat.detail.value
+      id: stat.detail.value,
+      scopeMins: {}
     };
     selectedStats = selectedStats;
     statSelector.handleClear();
@@ -219,7 +222,10 @@
   };
 
   let results = false;
-  let minTotalWeight = 0;
+  /** 各範圍層的加權總分下限，key 對應 activeScopes 的 key */
+  let scopeMinWeights: Record<string, number> = { all: 0, hope: 0, escape: 0 };
+  /** 結果要用哪一層的加權總分排序 */
+  let sortScope = 'all';
   let searching = false;
   let currentSeed = 0;
   let searchResults: SearchResults;
@@ -235,19 +241,32 @@
     searching = true;
     searchResults = undefined;
 
+    // 結果面板要照搜尋當下的範圍來標，之後改範圍不該讓舊結果的標籤跟著跳。
+    searchScopes = activeScopes.map((sc) => ({ key: sc.key, label: sc.label, short: sc.short, color: sc.color }));
+
     const query: ReverseSearchConfig = {
       jewel: selectedJewel.value,
       // Keystones are the only conqueror-dependent passives, so under "Any" we
       // drop them and any conqueror then yields the same rolls.
       conqueror: isAnyConqueror ? conquerors[0].value : selectedConqueror.value,
-      nodes: affectedNodes
-        .filter((n) => !disabled.has(n.skill))
-        .filter((n) => !isAnyConqueror || !n.isKeystone)
-        .map((n) => data.TreeToPassive[n.skill])
-        .filter((n) => !!n)
-        .map((n) => n.Index),
+      nodes: searchableNodes.map((n) => data.TreeToPassive[n.skill].Index),
       stats: Object.keys(selectedStats).map((stat) => selectedStats[stat]),
-      minTotalWeight
+      minTotalWeight: scopeMinWeights.all || 0,
+      // 分層篩選：每一層各帶自己的門檻，全部通過才留下這顆種子
+      scopes: activeScopes.map((sc) => ({
+        key: sc.key,
+        label: sc.label,
+        color: sc.color,
+        nodes: sc.nodes,
+        mins: Object.fromEntries(
+          Object.values(selectedStats).map((c) => [
+            c.id,
+            (sc.key === 'all' ? c.min : c.scopeMins?.[sc.key]) || 0
+          ])
+        ),
+        minTotalWeight: scopeMinWeights[sc.key] || 0
+      })),
+      sortScope
     };
 
     syncWrap
@@ -559,6 +578,89 @@
         label: `希望之弦 · ${hopeSize.label.split('（')[0]}`
       }
   ].filter(Boolean) as ExtraRing[];
+
+  // ---- 分層篩選：每個「範圍層」各有一組門檻
+  //
+  // 軍團珠寶只改造自己半徑內的天賦，而被點掉（disabled）的天賦本來就不列入搜尋，
+  // 所以每一層都先跟「珠寶半徑 ∩ 沒被排除」這組取交集，欄位上顯示的數量就是真正會被算的天賦數。
+  $: searchableNodes = affectedNodes
+    .filter((n) => !disabled.has(n.skill))
+    .filter((n) => !isAnyConqueror || !n.isKeystone)
+    .filter((n) => !!data.TreeToPassive[n.skill]);
+
+  $: hopeRing = hopeSocket && hopeSize ? THREAD_OF_HOPE_SIZES.find((r) => r.value === hopeSize.value) : undefined;
+  $: hopeNodes =
+    hopeSocket && hopeRing ? nodesWithinRing(hopeSocket.value, hopeRing.inner, hopeRing.outer, searchableNodes) : [];
+  $: escapeNodes = escapeKeystone
+    ? nodesWithinRing(escapeKeystone.value, 0, IMPOSSIBLE_ESCAPE_RADIUS, searchableNodes)
+    : [];
+
+  type UiScope = {
+    key: string;
+    label: string;
+    short: string;
+    color: string;
+    count: number;
+    nodes?: number[];
+    note?: string;
+  };
+
+  // 「珠寶範圍」永遠在；在天賦樹上設了希望之弦／逃脫不能，就自動多一欄。
+  $: activeScopes = [
+    {
+      key: 'all',
+      label: '珠寶範圍',
+      short: '珠寶',
+      color: '#60a5fa',
+      count: searchableNodes.length,
+      nodes: undefined,
+      note: '半徑 1800 內、沒被你點掉的天賦'
+    },
+    ...(hopeSocket && hopeRing
+      ? [
+          {
+            key: 'hope',
+            label: '希望之弦',
+            short: '弦內',
+            color: '#34d399',
+            count: hopeNodes.length,
+            nodes: hopeNodes,
+            note: `${hopeRing.label}（${hopeRing.inner}–${hopeRing.outer}）· ${hopeSocket.label}`
+          }
+        ]
+      : []),
+    ...(escapeKeystone
+      ? [
+          {
+            key: 'escape',
+            label: '逃脫不能',
+            short: '逃脫',
+            color: '#f59e0b',
+            count: escapeNodes.length,
+            nodes: escapeNodes,
+            note: escapeKeystone.label
+          }
+        ]
+      : [])
+  ] as UiScope[];
+
+  // 範圍消失時把排序依據收回「珠寶範圍」，否則排序會停在一個已經不存在的層
+  $: if (!activeScopes.some((sc) => sc.key === sortScope)) {
+    sortScope = 'all';
+  }
+
+  // 詞綴是先加、範圍後設也很常見，這裡補上缺的 scopeMins 容器
+  $: Object.values(selectedStats).forEach((c) => {
+    if (!c.scopeMins) {
+      c.scopeMins = {};
+    }
+  });
+
+  /** 表頭、詞綴列、總權重列共用同一組欄寬，直欄才會對齊 */
+  $: scopeColumns = `grid-template-columns: minmax(190px, 1fr) repeat(${activeScopes.length}, 88px) 76px;`;
+
+  /** 搜尋當下的範圍層，用來標結果 */
+  let searchScopes: { key: string; label: string; short: string; color: string }[] = [];
 
   // 右鍵直接在天賦樹上設定，比下拉找快得多；再右鍵同一個就取消
   const rightClickNode = (node: Node) => {
@@ -942,36 +1044,93 @@
                   <Select floatingConfig={{ strategy: 'fixed' }} items={statItems} on:change={selectStat} bind:this={statSelector} />
                 </div>
                 {#if Object.keys(selectedStats).length > 0}
-                  <div class="mt-4 flex flex-col overflow-auto min-h-[100px]">
-                    {#each Object.keys(selectedStats) as s}
-                      <div class="mb-4 flex flex-row items-start flex-col border-neutral-100/40 border-b pb-4">
-                        <div>
-                          <button
-                            class="p-2 px-4 bg-red-500/40 rounded mr-2"
-                            on:click={() => removeStat(selectedStats[s].id)}>
-                            -
-                          </button>
-                          <span>{translateStat(selectedStats[s].id)}</span>
-                        </div>
-                        <div class="mt-2 flex flex-row">
-                          <div class="mr-4 flex flex-row items-center">
-                            <div class="mr-2">最低值：</div>
-                            <input type="number" min="0" bind:value={selectedStats[s].min} />
+                  <!-- 分層篩選表：直欄＝範圍、橫列＝詞綴，每格填「這個範圍內至少幾點」。
+                       表頭與「最低總權重」放在捲動區外面，詞綴多的時候欄位標題和總分下限才不會被捲掉；
+                       三塊共用同一組 grid-template-columns，所以直欄還是對齊的。 -->
+                  <div class="mt-3 overflow-x-auto shrink-0">
+                    <div class="min-w-max">
+                      <div class="scope-grid" style={scopeColumns}>
+                        <div class="cell head stat-col">詞綴</div>
+                        {#each activeScopes as sc}
+                          <div class="cell head num-col" title={sc.note}>
+                            <div class="scope-name" style="--c:{sc.color}"><i />{sc.label}</div>
+                            <div class="scope-sub" class:empty={sc.count === 0}>{sc.count} 個</div>
                           </div>
-                          <div class="flex flex-row items-center">
-                            <div class="mr-2">權重：</div>
-                            <input type="number" min="0" bind:value={selectedStats[s].weight} />
-                          </div>
+                        {/each}
+                        <div class="cell head num-col"><div class="scope-name">權重</div></div>
+                      </div>
+                      <div class="overflow-y-auto max-h-[34vh]">
+                        <div class="scope-grid" style={scopeColumns}>
+                          {#each Object.keys(selectedStats) as s}
+                            <div class="cell stat-col">
+                              <button class="rm" title="移除這條詞綴" on:click={() => removeStat(selectedStats[s].id)}>
+                                -
+                              </button>
+                              <span>{translateStat(selectedStats[s].id)}</span>
+                            </div>
+                            {#each activeScopes as sc}
+                              <div class="cell num-col">
+                                {#if sc.key === 'all'}
+                                  <input type="number" min="0" bind:value={selectedStats[s].min} />
+                                {:else}
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    disabled={sc.count === 0}
+                                    bind:value={selectedStats[s].scopeMins[sc.key]} />
+                                {/if}
+                              </div>
+                            {/each}
+                            <div class="cell num-col">
+                              <input type="number" min="0" bind:value={selectedStats[s].weight} />
+                            </div>
+                          {/each}
                         </div>
                       </div>
-                    {/each}
-                  </div>
-                  <div class="flex flex-col mt-2">
-                    <div class="flex flex-row items-center">
-                      <div class="mr-2 min-w-fit">最低總權重：</div>
-                      <input type="number" min="0" bind:value={minTotalWeight} />
+                      <div class="scope-grid" style={scopeColumns}>
+                        <div class="cell stat-col foot">最低總權重</div>
+                        {#each activeScopes as sc}
+                          <div class="cell num-col foot">
+                            <input
+                              type="number"
+                              min="0"
+                              disabled={sc.count === 0}
+                              bind:value={scopeMinWeights[sc.key]} />
+                          </div>
+                        {/each}
+                        <div class="cell num-col foot" />
+                      </div>
                     </div>
                   </div>
+
+                  <div class="mt-2 text-sm text-neutral-400">
+                    每格填「這個範圍內<b class="text-neutral-200">至少幾個天賦</b>帶這條詞綴」，留 0 ＝不限；
+                    每一欄的門檻都要過，種子才留下。
+                    {#if activeScopes.length === 1}
+                      <span class="text-neutral-300"
+                        >在天賦樹上右鍵珠寶插槽（希望之弦）或鑰石（逃脫不能），就會多出對應的欄位。</span>
+                    {/if}
+                  </div>
+                  {#each activeScopes.filter((sc) => sc.count === 0 && sc.key !== 'all') as sc}
+                    <div class="mt-1 text-sm" style="color:{sc.color}">
+                      ⚠「{sc.label}」和珠寶範圍沒有交集，這一欄沒有天賦可算。
+                    </div>
+                  {/each}
+
+                  {#if activeScopes.length > 1}
+                    <div class="mt-2 flex flex-row items-center flex-wrap gap-2">
+                      <span class="text-sm min-w-fit text-neutral-400">結果排序依據：</span>
+                      {#each activeScopes as sc}
+                        <button
+                          class="scope-pill"
+                          class:on={sortScope === sc.key}
+                          style="--c:{sc.color}"
+                          on:click={() => (sortScope = sc.key)}>
+                          {sc.label}
+                        </button>
+                      {/each}
+                    </div>
+                  {/if}
                   <div class="flex flex-col mt-4">
                     <div class="flex flex-row">
                       <button
@@ -1132,6 +1291,7 @@
             {searchResults}
             {groupResults}
             {highlight}
+            scopes={searchScopes}
             jewel={searchJewel}
             conqueror={searchConqueror}
             platform={platform.value}
@@ -1177,6 +1337,84 @@
 </SkillTree>
 
 <style lang="postcss">
+  /* 分層篩選表：直欄＝範圍層，橫列＝詞綴 */
+  .scope-grid {
+    display: grid;
+    align-items: stretch;
+    min-width: max-content;
+  }
+
+  .scope-grid .cell {
+    @apply flex items-center px-2 py-1;
+    border-bottom: 1px solid var(--line, #2b2b34);
+  }
+
+  .scope-grid .head {
+    @apply pb-2 items-end;
+    border-bottom: 1px solid var(--line-strong, #414150);
+  }
+
+  .scope-grid .num-col {
+    @apply justify-center flex-col;
+  }
+
+  .scope-grid .stat-col {
+    @apply gap-2 leading-tight;
+  }
+
+  .scope-grid .foot {
+    @apply text-sm text-neutral-400;
+    border-bottom: none;
+    border-top: 1px solid var(--line-strong, #414150);
+  }
+
+  .scope-grid input {
+    @apply w-full text-center;
+    padding: 2px 4px;
+  }
+
+  .scope-grid input:disabled {
+    opacity: 0.35;
+  }
+
+  .scope-name {
+    @apply flex flex-row items-center gap-1 text-sm whitespace-nowrap;
+    color: var(--c, var(--text));
+  }
+
+  .scope-name i {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--c, transparent);
+  }
+
+  .scope-sub {
+    @apply text-xs text-neutral-500 whitespace-nowrap;
+  }
+
+  .scope-sub.empty {
+    color: #d9534f;
+  }
+
+  .scope-grid .rm {
+    @apply shrink-0 rounded bg-red-500/40 leading-none;
+    width: 22px;
+    height: 22px;
+  }
+
+  .scope-pill {
+    @apply rounded-full px-3 py-1 text-sm;
+    border: 1px solid var(--c);
+    color: var(--c);
+  }
+
+  .scope-pill.on {
+    background: var(--c);
+    color: #17130a;
+    font-weight: 600;
+  }
+
   .selection-button {
     @apply bg-neutral-500/20 p-2 px-4 flex-grow;
   }

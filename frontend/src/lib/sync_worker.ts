@@ -39,7 +39,8 @@ const obj = {
             label: '珠寶範圍',
             color: '#60a5fa',
             mins: Object.fromEntries(args.stats.map((s) => [s.id, s.min || 0])),
-            minTotalWeight: args.minTotalWeight
+            minTotalWeight: args.minTotalWeight,
+            minSum: 0
           }
         ];
 
@@ -74,6 +75,7 @@ const obj = {
           seed,
           weight: tally.weights[primary],
           statCounts: tally.counts[primary],
+          scopeSums: tally.sums,
           scopeWeights: tally.weights,
           scopeCounts: tally.counts,
           scopeSkillCounts: tally.skillCounts

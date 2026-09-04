@@ -48,7 +48,8 @@
         <span
           class="scope-tag"
           style="--c:{sc.color}"
-          title="{sc.label}內命中 {set.scopeSkillCounts?.[sc.key] ?? 0} 個天賦，加權 {set.scopeWeights?.[sc.key] ?? 0}">
+          title="{sc.label}內命中 {set.scopeSkillCounts?.[sc.key] ?? 0} 個天賦，合計 {set.scopeSums?.[sc.key] ??
+            0} 點，加權 {set.scopeWeights?.[sc.key] ?? 0}">
           {sc.short} {set.scopeSkillCounts?.[sc.key] ?? 0}
         </span>
       {/each}

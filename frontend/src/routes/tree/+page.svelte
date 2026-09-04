@@ -107,7 +107,8 @@
         weight: 1,
         min: 0,
         id: nStat,
-        scopeMins: {}
+        scopeMins: {},
+        inSum: true
       };
     });
   }
@@ -202,7 +203,8 @@
       weight: 1,
       min: 0,
       id: stat.detail.value,
-      scopeMins: {}
+      scopeMins: {},
+      inSum: true
     };
     selectedStats = selectedStats;
     statSelector.handleClear();
@@ -224,6 +226,8 @@
   let results = false;
   /** 各範圍層的加權總分下限，key 對應 activeScopes 的 key */
   let scopeMinWeights: Record<string, number> = { all: 0, hope: 0, escape: 0 };
+  /** 各範圍層的「合計至少幾點」：被勾選的詞綴加起來 */
+  let scopeMinSums: Record<string, number> = { all: 0, hope: 0, escape: 0 };
   /** 結果要用哪一層的加權總分排序 */
   let sortScope = 'all';
   let searching = false;
@@ -264,6 +268,8 @@
             (sc.key === 'all' ? c.min : c.scopeMins?.[sc.key]) || 0
           ])
         ),
+        sumStats: summedStats,
+        minSum: scopeMinSums[sc.key] || 0,
         minTotalWeight: scopeMinWeights[sc.key] || 0
       })),
       sortScope
@@ -654,7 +660,15 @@
     if (!c.scopeMins) {
       c.scopeMins = {};
     }
+    if (c.inSum === undefined) {
+      c.inSum = true;
+    }
   });
+
+  /** 要計入「合計」的詞綴（左邊勾勾） */
+  $: summedStats = Object.values(selectedStats)
+    .filter((c) => c.inSum !== false)
+    .map((c) => c.id);
 
   /** 表頭、詞綴列、總權重列共用同一組欄寬，直欄才會對齊 */
   $: scopeColumns = `grid-template-columns: minmax(190px, 1fr) repeat(${activeScopes.length}, 88px) 76px;`;
@@ -1066,6 +1080,11 @@
                               <button class="rm" title="移除這條詞綴" on:click={() => removeStat(selectedStats[s].id)}>
                                 -
                               </button>
+                              <input
+                                type="checkbox"
+                                class="sum-check"
+                                title="計入下面的「合計至少」"
+                                bind:checked={selectedStats[s].inSum} />
                               <span>{translateStat(selectedStats[s].id)}</span>
                             </div>
                             {#each activeScopes as sc}
@@ -1088,6 +1107,15 @@
                         </div>
                       </div>
                       <div class="scope-grid" style={scopeColumns}>
+                        <div class="cell stat-col foot" title="勾起來的詞綴，在這個範圍內加起來至少幾點">
+                          合計至少（勾選的 {summedStats.length} 條）
+                        </div>
+                        {#each activeScopes as sc}
+                          <div class="cell num-col foot">
+                            <input type="number" min="0" disabled={sc.count === 0} bind:value={scopeMinSums[sc.key]} />
+                          </div>
+                        {/each}
+                        <div class="cell num-col foot" />
                         <div class="cell stat-col foot">最低總權重</div>
                         {#each activeScopes as sc}
                           <div class="cell num-col foot">
@@ -1105,7 +1133,8 @@
 
                   <div class="mt-2 text-sm text-neutral-400">
                     每格填「這個範圍內<b class="text-neutral-200">至少幾個天賦</b>帶這條詞綴」，留 0 ＝不限；
-                    每一欄的門檻都要過，種子才留下。
+                    每一欄的門檻都要過，種子才留下。想要「<b class="text-neutral-200">A＋B 合計幾點</b>」就填最後那一列，
+                    不想算進合計的詞綴把左邊的勾取消。
                     {#if activeScopes.length === 1}
                       <span class="text-neutral-300"
                         >在天賦樹上右鍵珠寶插槽（希望之弦）或鑰石（逃脫不能），就會多出對應的欄位。</span>
@@ -1395,6 +1424,10 @@
 
   .scope-sub.empty {
     color: #d9534f;
+  }
+
+  .scope-grid .sum-check {
+    @apply shrink-0 w-4 h-4 accent-amber-500;
   }
 
   .scope-grid .rm {

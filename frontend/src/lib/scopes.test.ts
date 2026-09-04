@@ -115,3 +115,42 @@ describe('evaluateScopes — 分層', () => {
     expect(t.passed).toBe(false);
   });
 });
+
+describe('evaluateScopes — 合計（A＋B 至少幾點）', () => {
+  // 詞綴 1 出現 3 次、詞綴 2 出現 2 次，合計 5 點
+  it('沒指定 sumStats 就是全部詞綴加起來', () => {
+    const t = evaluateScopes(skills, [all()], weightOf);
+    expect(t.sums.all).toBe(5);
+  });
+
+  it('合計門檻擋在 6、放行在 5', () => {
+    expect(evaluateScopes(skills, [{ ...all(), minSum: 5 }], weightOf).passed).toBe(true);
+    expect(evaluateScopes(skills, [{ ...all(), minSum: 6 }], weightOf).passed).toBe(false);
+  });
+
+  it('取消勾選的詞綴不計入合計', () => {
+    // 只算詞綴 1 → 3 點
+    const t = evaluateScopes(skills, [{ ...all(), sumStats: [1] }], weightOf);
+    expect(t.sums.all).toBe(3);
+    expect(evaluateScopes(skills, [{ ...all(), sumStats: [1], minSum: 4 }], weightOf).passed).toBe(false);
+  });
+
+  it('合計也是分層的：環內只算環內的點數', () => {
+    // 環內：詞綴 1 兩點 + 詞綴 2 一點 = 3
+    const t = evaluateScopes(skills, [all(), hope()], weightOf);
+    expect(t.sums.hope).toBe(3);
+    expect(evaluateScopes(skills, [all(), { ...hope(), minSum: 3 }], weightOf).passed).toBe(true);
+    expect(evaluateScopes(skills, [all(), { ...hope(), minSum: 4 }], weightOf).passed).toBe(false);
+  });
+
+  it('一個天賦同時帶 A 和 B 就算 2 點', () => {
+    const both = [{ passive: 201, stats: { 1: 5, 2: 10 } }];
+    expect(evaluateScopes(both, [all()], weightOf).sums.all).toBe(2);
+  });
+
+  it('合計與各別門檻可以並存，兩個都要過', () => {
+    // 合計 5 過，但詞綴 2 只有 2 個、要求 3 → 不過
+    const scope = { ...all({ 2: 3 }), minSum: 5 };
+    expect(evaluateScopes(skills, [scope], weightOf).passed).toBe(false);
+  });
+});

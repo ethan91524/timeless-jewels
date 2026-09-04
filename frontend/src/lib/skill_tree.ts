@@ -374,6 +374,10 @@ export interface SearchScope {
   nodes?: number[];
   /** statId -> 這層至少要有幾個天賦帶這條詞綴（0 或缺席＝不限） */
   mins: Record<number, number>;
+  /** 計入「合計」的詞綴；空的就等於全部要找的詞綴 */
+  sumStats?: number[];
+  /** 這層的合計下限：上面那些詞綴加起來至少幾點（0＝不限） */
+  minSum?: number;
   /** 這層的加權總分下限（0＝不限） */
   minTotalWeight: number;
 }
@@ -381,6 +385,8 @@ export interface SearchScope {
 export interface ScopeTally {
   /** scopeKey -> statId -> 這層有幾個天賦帶這條詞綴 */
   counts: Record<string, Record<number, number>>;
+  /** scopeKey -> 計入合計的那些詞綴，在這層總共幾點 */
+  sums: Record<string, number>;
   /** scopeKey -> 這層的加權總分 */
   weights: Record<string, number>;
   /** scopeKey -> 這層命中幾個天賦 */
@@ -400,12 +406,16 @@ export const evaluateScopes = (
   weightOf: (statId: number) => number
 ): ScopeTally => {
   const counts: Record<string, Record<number, number>> = {};
+  const sums: Record<string, number> = {};
   const weights: Record<string, number> = {};
   const skillCounts: Record<string, number> = {};
 
   const members = scopes.map((s) => (s.nodes ? new Set(s.nodes) : undefined));
+  // 沒指定要合計哪些詞綴＝全部都算
+  const members2 = scopes.map((s) => (s.sumStats?.length ? new Set(s.sumStats) : undefined));
   scopes.forEach((s) => {
     counts[s.key] = {};
+    sums[s.key] = 0;
     weights[s.key] = 0;
     skillCounts[s.key] = 0;
   });
@@ -419,9 +429,14 @@ export const evaluateScopes = (
       }
 
       skillCounts[scope.key]++;
+      const summed = members2[i];
       statIds.forEach((statId) => {
         counts[scope.key][statId] = (counts[scope.key][statId] || 0) + 1;
         weights[scope.key] += weightOf(statId);
+        // 合計＝這些詞綴各自的點數相加；一個天賦同時帶 A 和 B 就算 2 點
+        if (!summed || summed.has(statId)) {
+          sums[scope.key]++;
+        }
       });
     });
   });
@@ -431,13 +446,17 @@ export const evaluateScopes = (
       return false;
     }
 
+    if (scope.minSum && sums[scope.key] < scope.minSum) {
+      return false;
+    }
+
     return Object.keys(scope.mins).every((statId) => {
       const min = scope.mins[statId];
       return !min || (counts[scope.key][statId] || 0) >= min;
     });
   });
 
-  return { counts, weights, skillCounts, passed };
+  return { counts, sums, weights, skillCounts, passed };
 };
 
 type Stat = { Index: number; ID: string; Text: string };
@@ -458,6 +477,8 @@ export interface StatConfig {
   weight: number;
   /** 其餘範圍層的門檻：scopeKey -> 至少幾點 */
   scopeMins?: Record<string, number>;
+  /** 是否計入「合計至少」那一列，預設計入 */
+  inSum?: boolean;
 }
 
 export interface ReverseSearchConfig {
@@ -477,6 +498,7 @@ export interface SearchWithSeed {
   /** 第一層（珠寶範圍）的加權總分，維持舊欄位語意 */
   weight: number;
   statCounts: Record<number, number>;
+  scopeSums?: Record<string, number>;
   scopeWeights?: Record<string, number>;
   scopeCounts?: Record<string, Record<number, number>>;
   scopeSkillCounts?: Record<string, number>;

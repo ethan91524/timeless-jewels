@@ -253,7 +253,9 @@
       // Keystones are the only conqueror-dependent passives, so under "Any" we
       // drop them and any conqueror then yields the same rolls.
       conqueror: isAnyConqueror ? conquerors[0].value : selectedConqueror.value,
-      nodes: searchableNodes.map((n) => data.TreeToPassive[n.skill].Index),
+      // 只送至少屬於某一層的天賦：某一欄切成「只核心」時，沒被任何一欄要到的天賦
+      // 既不該影響篩選，也不該出現在結果卡片裡
+      nodes: [...new Set(activeScopes.flatMap((sc) => sc.nodes))].map((skill) => data.TreeToPassive[skill].Index),
       stats: Object.keys(selectedStats).map((stat) => selectedStats[stat]),
       minTotalWeight: scopeMinWeights.all || 0,
       // 分層篩選：每一層各帶自己的門檻，全部通過才留下這顆種子
@@ -595,11 +597,30 @@
     .filter((n) => !!data.TreeToPassive[n.skill]);
 
   $: hopeRing = hopeSocket && hopeSize ? THREAD_OF_HOPE_SIZES.find((r) => r.value === hopeSize.value) : undefined;
-  $: hopeNodes =
-    hopeSocket && hopeRing ? nodesWithinRing(hopeSocket.value, hopeRing.inner, hopeRing.outer, searchableNodes) : [];
-  $: escapeNodes = escapeKeystone
-    ? nodesWithinRing(escapeKeystone.value, 0, IMPOSSIBLE_ESCAPE_RADIUS, searchableNodes)
-    : [];
+  $: hopeIds =
+    hopeSocket && hopeRing
+      ? new Set(nodesWithinRing(hopeSocket.value, hopeRing.inner, hopeRing.outer, searchableNodes))
+      : undefined;
+  $: escapeIds = escapeKeystone
+    ? new Set(nodesWithinRing(escapeKeystone.value, 0, IMPOSSIBLE_ESCAPE_RADIUS, searchableNodes))
+    : undefined;
+
+  // 每個範圍層可以各自只算核心／只算一般天賦。天賦樹上點掉的天賦是「手動排除」，
+  // 那個本來就是全域的（不管哪一層都不算），這裡的切換只影響單一欄。
+  type ScopeNodeType = 'all' | 'notable' | 'normal';
+  let scopeNodeTypes: Record<string, ScopeNodeType> = { all: 'all', hope: 'all', escape: 'all' };
+
+  const nodeTypeItems: { value: ScopeNodeType; label: string; title: string }[] = [
+    { value: 'all', label: '全', title: '這一欄算全部天賦' },
+    { value: 'notable', label: '核', title: '這一欄只算核心天賦' },
+    { value: 'normal', label: '般', title: '這一欄只算一般天賦（含鑰石）' }
+  ];
+
+  const scopeNodeList = (ids: Set<number> | undefined, type: ScopeNodeType): number[] =>
+    searchableNodes
+      .filter((n) => !ids || ids.has(n.skill))
+      .filter((n) => type === 'all' || (type === 'notable' ? n.isNotable : !n.isNotable))
+      .map((n) => n.skill);
 
   type UiScope = {
     key: string;
@@ -607,19 +628,23 @@
     short: string;
     color: string;
     count: number;
-    nodes?: number[];
+    nodes: number[];
     note?: string;
   };
 
   // 「珠寶範圍」永遠在；在天賦樹上設了希望之弦／逃脫不能，就自動多一欄。
+  $: allNodes = scopeNodeList(undefined, scopeNodeTypes.all);
+  $: hopeNodes = hopeIds ? scopeNodeList(hopeIds, scopeNodeTypes.hope) : [];
+  $: escapeNodes = escapeIds ? scopeNodeList(escapeIds, scopeNodeTypes.escape) : [];
+
   $: activeScopes = [
     {
       key: 'all',
       label: '珠寶範圍',
       short: '珠寶',
       color: '#60a5fa',
-      count: searchableNodes.length,
-      nodes: undefined,
+      count: allNodes.length,
+      nodes: allNodes,
       note: '半徑 1800 內、沒被你點掉的天賦'
     },
     ...(hopeSocket && hopeRing
@@ -671,7 +696,7 @@
     .map((c) => c.id);
 
   /** 表頭、詞綴列、總權重列共用同一組欄寬，直欄才會對齊 */
-  $: scopeColumns = `grid-template-columns: minmax(190px, 1fr) repeat(${activeScopes.length}, 88px) 76px;`;
+  $: scopeColumns = `grid-template-columns: minmax(180px, 1fr) repeat(${activeScopes.length}, 96px) 72px;`;
 
   /** 搜尋當下的範圍層，用來標結果 */
   let searchScopes: { key: string; label: string; short: string; color: string }[] = [];
@@ -1069,6 +1094,17 @@
                           <div class="cell head num-col" title={sc.note}>
                             <div class="scope-name" style="--c:{sc.color}"><i />{sc.label}</div>
                             <div class="scope-sub" class:empty={sc.count === 0}>{sc.count} 個</div>
+                            <div class="type-pills" style="--c:{sc.color}">
+                              {#each nodeTypeItems as t}
+                                <button
+                                  type="button"
+                                  title={t.title}
+                                  class:on={(scopeNodeTypes[sc.key] ?? 'all') === t.value}
+                                  on:click={() => (scopeNodeTypes = { ...scopeNodeTypes, [sc.key]: t.value })}>
+                                  {t.label}
+                                </button>
+                              {/each}
+                            </div>
                           </div>
                         {/each}
                         <div class="cell head num-col"><div class="scope-name">權重</div></div>
@@ -1161,6 +1197,10 @@
                     </div>
                   {/if}
                   <div class="flex flex-col mt-4">
+                    <div class="text-sm text-neutral-400 mb-1">
+                      手動排除（在天賦樹上點天賦；<b class="text-neutral-200">對所有範圍都生效</b>——
+                      只想讓某一欄不算一般天賦，用那一欄標題下面的「核／般」）
+                    </div>
                     <div class="flex flex-row">
                       <button
                         class="p-2 px-2 bg-yellow-500/40 rounded disabled:bg-yellow-900/40 mr-2"
@@ -1420,6 +1460,24 @@
 
   .scope-sub {
     @apply text-xs text-neutral-500 whitespace-nowrap;
+  }
+
+  .type-pills {
+    @apply flex flex-row gap-0.5 mt-1;
+  }
+
+  .type-pills button {
+    @apply text-xs rounded leading-none;
+    width: 22px;
+    padding: 3px 0;
+    border: 1px solid var(--line-strong, #414150);
+    color: var(--muted, #8d8779);
+  }
+
+  .type-pills button.on {
+    border-color: var(--c);
+    color: var(--c);
+    background: color-mix(in srgb, var(--c) 18%, transparent);
   }
 
   .scope-sub.empty {
